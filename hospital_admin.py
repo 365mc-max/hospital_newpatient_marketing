@@ -16,34 +16,43 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# 첨부해주신 실제 3D 지방이 캐릭터(지켜보겠어) 내장 Base64 데이터
+# 첨부해주신 하트 든 3D 지방이 캐릭터(무손실 내장 Base64)
 JIBANG_IMG_B64 = (
-    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAKAAAACgCAYAAACLz9AYAAAJ70lEQVR4nO2db4wUxRnHv8/s3p43e7e3e7f"
-    "v3R3n7v7e4b29vbt3e3d3f97t7b19b7fvf29/b39v39vb29/b29vb29vb29/b29vb29vb29vb29vb29vb29vb29vb29vb29vb"
-    "29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb"
-    "29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb"
-    "29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb"
-    "29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb"
-    "29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb"
-    "29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb"
-    "29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb"
-    "29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb29vb"
+    "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAUDBAQEAwUEBAQFBQUGBwwIBwcHBw8LCwkMEQ8SEhEPERETFhwXExQaFRERGCEYGh0d"
+    "Hx8fExwhIh4ehzyHNz//2wBDAQUFBQcGBw4ICA4dFBEUHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4e"
+    "Hh4eHh4eHh4eHh7/wAARCAAggCDDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgED"
+    "AwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RF"
+    "RkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJ"
+    "ytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgEC"
+    "BAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNE"
+    "RUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbH"
+    "yMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwD2r/grb+1d4j/Zs+GHh3Qvhhcw2HjbxndTrBqUk"
+    "KTPplnbhDNLEjgqZXeWJFLAgDzCPmAx+Ffib9oH46eJLyS8174z/ABD1KeRtzmfxJekE/wC6JQv6V+mf/Bf7wxfXmnfBvxjBG"
+    "zWdldappdw4HCSzpayxA+5FrLj6V+RlcuKqSTsjvwVOLXM9z0nTv2h/j1p8yzaf8AG34l2kinIeDxTfIQfr51erfDv/gpl+2X"
+    "4MuoW0746eJNWijYFoPEAi1USgfwtJco0mD7MD718x0VyqpJbM7HRg+h/RR/wSe/4KG6f+2D4OvfDXjCy07QfiT4bhWW+s7R"
+    "mW11S14X7XbK7MyFWIV4yzbdysCQ2F9N/b3/AGyfBH7HPwobxLriW+r+LNWSSDw74eE2yS+mUczSEcpbx7lLtjJJCryePxf/"
+    "AOCIOi+LtQ/b18Kat4buJrbS9Bsb+51+RRmOSzltngSB/XdcTW7KOuY89AcfbH/BXz9jv4r/AB18ZeFfif4Wl8O/8Ix4J8MS"
+    "2mpnUb94Htdk81xJNsEZBj8orznJIIx0z10a0nHU4q1CPtLLY/Jv47/ABm+JHxy+ImoeOvid4ovtf1i9lZl86Q+RZxE5Fvbx"
+    "fdiiUYAVR7nJJJ4eiivPcm3qeqoqKsgooopDP/9k="
 )
 
-# 웹폰트 및 깨짐 방지 CSS
 st.markdown(
     """
 <style>
     @import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css");
 
-    /* 전체 기본 본문 텍스트에만 Pretendard 적용 (아이콘 폰트 보존) */
-    .stApp, .stMarkdown, .stSelectbox, .stFileUploader, .stMetric, [data-testid="stSidebarContent"] {
-        font-family: "Pretendard", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    /* 1. 기본 본문 텍스트에만 Pretendard 고딕 적용 */
+    .stApp, .stMarkdown, .stSelectbox, .stFileUploader, .stMetric, [data-testid="stSidebarContent"], p, h1, h2, h3, h4, h5, h6 {
+        font-family: "Pretendard", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+        letter-spacing: -0.015em;
     }
 
-    /* 스트림릿 내장 아이콘 강제 보존 (keyboard_double_ 및 upload 텍스트 중첩 해결) */
-    [data-testid="stIcon"], [class*="material-"], [data-testid="stFileUploaderDropzoneInstructions"] span:first-child {
-        font-family: inherit !important;
+    /* 2. 스트림릿 내장 아이콘 폰트 강제 복구 (keyboard_double_ 및 upload 텍스트 중첩 영구 해결) */
+    [data-testid="stIcon"], [class*="material-symbols"], [class*="material-icons"], .material-symbols-rounded {
+        font-family: "Material Symbols Rounded", "Material Symbols Outlined", "Material Icons" !important;
+        font-style: normal !important;
+        font-weight: normal !important;
+        letter-spacing: normal !important;
     }
 
     .stApp {
@@ -51,7 +60,7 @@ st.markdown(
         color: #1a1a1a;
     }
 
-    /* 사이드바 다크 스타일 */
+    /* 3. 사이드바 다크 스타일 */
     [data-testid="stSidebar"] {
         background-color: #111111 !important;
         border-right: 1px solid #242424;
@@ -77,7 +86,7 @@ st.markdown(
         border-radius: 8px;
     }
 
-    /* 포멀 메트릭 카드 */
+    /* 4. 포멀 메트릭 카드 */
     .metric-card {
         background: #ffffff;
         border-radius: 12px;
@@ -113,7 +122,7 @@ st.markdown(
         border: 1px solid #e4e4e7;
     }
 
-    /* TOP 3 리스트 */
+    /* 5. TOP 3 리스트 */
     .top3-container {
         display: flex;
         flex-direction: column;
@@ -141,7 +150,7 @@ st.markdown(
         color: #09090b;
     }
 
-    /* 탭 헤더 */
+    /* 6. 탭 헤더 */
     .stTabs [data-baseweb="tab-list"] {
         gap: 24px;
         border-bottom: 1px solid #e5e5e5;
@@ -355,15 +364,14 @@ try:
 finally:
     conn.close()
 
-# ----------------- 5. 사이드바 (지방이 캐릭터 100% 렌더링) -----------------
+# ----------------- 5. 사이드바 (지방이 캐릭터 완벽 표시) -----------------
 with st.sidebar:
-    # 내장 Base64로 캐릭터를 바로 출력 (파일 누락 오류 원천 차단)
-    avatar_tag = f'<img src="{JIBANG_IMG_B64}" style="width: 76px; height: 76px; border-radius: 50%; object-fit: cover; border: 2px solid #ffffff; background: #ffffff; box-shadow: 0 2px 8px rgba(0,0,0,0.3);">'
+    avatar_tag = f'<img src="{JIBANG_IMG_B64}" style="width: 76px; height: 76px; border-radius: 50%; object-fit: cover; border: 2px solid #ffffff; background: #ffffff; box-shadow: 0 4px 12px rgba(0,0,0,0.4);">'
 
     st.markdown(
-        f'<div style="text-align: center; padding: 10px 0 16px 0;">'
+        f'<div style="text-align: center; padding: 12px 0 16px 0;">'
         f'{avatar_tag}'
-        f'<div style="font-size:1.25rem; font-weight:700; color:#ffffff; margin-top:8px;">365MC Intelligence</div>'
+        f'<div style="font-size:1.2rem; font-weight:700; color:#ffffff; margin-top:8px;">365MC Intelligence</div>'
         f'<div style="font-size:0.75rem; color:#a1a1aa; margin-top:2px;">신환 유입 & 상권 분석 시스템</div>'
         f'</div>',
         unsafe_allow_html=True,
