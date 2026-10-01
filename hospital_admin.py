@@ -19,17 +19,14 @@ st.set_page_config(
 st.markdown(
     """
 <style>
-    /* 구글 웹폰트: 포멀한 Serif 및 Sans-Serif 로드 */
     @import url('https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
 
-    /* 메인 캔버스: 세련된 오프화이트/웜그레이 톤 */
     .stApp {
         background-color: #fbfbfa;
         font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
         color: #1a1a1a;
     }
 
-    /* 포멀 세리프 헤더 폰트 */
     .formal-title {
         font-family: 'Newsreader', Georgia, serif;
         font-weight: 500;
@@ -39,7 +36,6 @@ st.markdown(
         margin-bottom: 2px;
     }
 
-    /* 사이드바: 딥 차콜/매트 블랙 엔터프라이즈 스타일 */
     [data-testid="stSidebar"] {
         background-color: #111111 !important;
         border-right: 1px solid #242424;
@@ -64,7 +60,6 @@ st.markdown(
         border-radius: 8px;
     }
 
-    /* 포멀 미니멀 카드 UI */
     .metric-card {
         background: #ffffff;
         border-radius: 10px;
@@ -102,23 +97,23 @@ st.markdown(
         border: 1px solid #e4e4e7;
     }
 
-    /* TOP 3 리스트 스타일 */
+    .top3-container {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        margin: 4px 0;
+    }
     .top3-row {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        font-size: 0.85rem;
-        padding: 2px 0;
-        border-bottom: 1px dashed #f4f4f5;
-    }
-    .top3-row:last-child {
-        border-bottom: none;
+        font-size: 0.86rem;
     }
     .top3-rank {
         color: #71717a;
         font-weight: 600;
         margin-right: 6px;
-        font-size: 0.78rem;
+        font-size: 0.8rem;
     }
     .top3-name {
         font-weight: 500;
@@ -129,7 +124,6 @@ st.markdown(
         color: #09090b;
     }
 
-    /* 탭 헤더 스타일링 */
     .stTabs [data-baseweb="tab-list"] {
         gap: 24px;
         border-bottom: 1px solid #e5e5e5;
@@ -344,7 +338,7 @@ try:
 finally:
     conn.close()
 
-# ----------------- 5. 사이드바 (Harvey Dark Sidebar) -----------------
+# ----------------- 5. 사이드바 -----------------
 with st.sidebar:
     st.markdown(
         "<div style='padding: 6px 0 16px 0;'>"
@@ -354,28 +348,26 @@ with st.sidebar:
         unsafe_allow_html=True,
     )
 
-    # 1. 상단: 분석 필터
     st.markdown("<p style='font-size:0.75rem; color:#a1a1aa; font-weight:600; text-transform:uppercase; margin-bottom:8px;'>Parameters</p>", unsafe_allow_html=True)
     if not df_channels.empty:
         periods = sorted(df_channels["기간"].unique().tolist())
-        sel_period = st.selectbox("분석 기간 (Date Range)", periods)
+        sel_period = st.selectbox("분석 기간 (DATE RANGE)", periods)
 
         branches = ["전지점(통합)"] + sorted(
             df_channels[df_channels["기간"] == sel_period]["지점명"]
             .unique()
             .tolist()
         )
-        sel_branch = st.selectbox("지점 (Branch Office)", branches)
+        sel_branch = st.selectbox("지점 (BRANCH OFFICE)", branches)
     else:
         sel_period, sel_branch = None, None
         st.caption("누적된 데이터베이스가 없습니다.")
 
     st.markdown("<div style='height: 40px;'></div><hr style='margin: 0 0 20px 0;'>", unsafe_allow_html=True)
 
-    # 2. 하단: 파일 업로드
     st.markdown("<p style='font-size:0.75rem; color:#a1a1aa; font-weight:600; text-transform:uppercase; margin-bottom:8px;'>Data Ingestion</p>", unsafe_allow_html=True)
     uploaded_files = st.file_uploader(
-        "신환 조사 엑셀 로드 (.xlsx)",
+        "신환 조사 엑셀 로드 (.XLSX)",
         type=["xlsx"],
         accept_multiple_files=True,
     )
@@ -431,7 +423,6 @@ if sel_branch != "전지점(통합)":
     f_vir = f_vir[f_vir["지점명"] == sel_branch]
     f_vsum = f_vsum[f_vsum["지점명"] == sel_branch]
 
-# 포멀 헤더
 st.markdown(
     f"""
     <div style="margin-bottom: 24px;">
@@ -459,8 +450,8 @@ viral_rate = (
     else 0.0
 )
 
-# TOP 3 거주지 HTML 구성
-top3_content = ""
+# TOP 3 거주지 HTML 구성 (들여쓰기 제거로 마크다운 코드블록 오인 방지)
+rows_list = []
 if not f_reg.empty:
     top3_reg = (
         f_reg.groupby("거주지역")["신환수"]
@@ -470,12 +461,13 @@ if not f_reg.empty:
         .head(3)
     )
     for idx, row in enumerate(top3_reg.itertuples(), start=1):
-        top3_content += f"""
-        <div class="top3-row">
-            <div><span class="top3-rank">{idx}</span> <span class="top3-name">{row.거주지역}</span></div>
-            <div class="top3-count">{row.신환수:,}명</div>
-        </div>
-        """
+        rows_list.append(
+            f'<div class="top3-row">'
+            f'<div><span class="top3-rank">{idx}</span><span class="top3-name">{row.거주지역}</span></div>'
+            f'<div class="top3-count">{row.신환수:,}명</div>'
+            f'</div>'
+        )
+    top3_content = '<div class="top3-container">' + "".join(rows_list) + '</div>'
 else:
     top3_content = "<div style='color:#a1a1aa; font-size:0.85rem;'>기록 없음</div>"
 
@@ -483,58 +475,50 @@ k1, k2, k3, k4 = st.columns(4)
 
 with k1:
     st.markdown(
-        f"""
-    <div class="metric-card">
-        <div class="metric-title">총 신환 유입수</div>
-        <div class="metric-value">{total_inflows:,} <span style="font-size:1.1rem; font-family:'Plus Jakarta Sans'; font-weight:400; color:#71717a;">건</span></div>
-        <div class="metric-badge">Gross Inflows</div>
-    </div>
-    """,
+        f'<div class="metric-card">'
+        f'<div class="metric-title">총 신환 유입수</div>'
+        f'<div class="metric-value">{total_inflows:,} <span style="font-size:1.1rem; font-family:\'Plus Jakarta Sans\'; font-weight:400; color:#71717a;">건</span></div>'
+        f'<div class="metric-badge">Gross Inflows</div>'
+        f'</div>',
         unsafe_allow_html=True,
     )
 
 with k2:
     st.markdown(
-        f"""
-    <div class="metric-card">
-        <div class="metric-title">최대 유입 채널</div>
-        <div class="metric-value" style="font-size:1.45rem; line-height:1.2; padding-top:6px;">{top_channel}</div>
-        <div class="metric-badge">Primary Channel</div>
-    </div>
-    """,
+        f'<div class="metric-card">'
+        f'<div class="metric-title">최대 유입 채널</div>'
+        f'<div class="metric-value" style="font-size:1.45rem; line-height:1.2; padding-top:6px;">{top_channel}</div>'
+        f'<div class="metric-badge">Primary Channel</div>'
+        f'</div>',
         unsafe_allow_html=True,
     )
 
 with k3:
     st.markdown(
-        f"""
-    <div class="metric-card">
-        <div class="metric-title">바이럴 기여율</div>
-        <div class="metric-value">{viral_rate}<span style="font-size:1.3rem;">%</span></div>
-        <div class="metric-badge">Organic & SNS</div>
-    </div>
-    """,
+        f'<div class="metric-card">'
+        f'<div class="metric-title">바이럴 기여율</div>'
+        f'<div class="metric-value">{viral_rate}<span style="font-size:1.3rem;">%</span></div>'
+        f'<div class="metric-badge">Organic & SNS</div>'
+        f'</div>',
         unsafe_allow_html=True,
     )
 
 with k4:
     st.markdown(
-        f"""
-    <div class="metric-card">
-        <div class="metric-title" style="margin-bottom:6px;">모객 거주지 TOP 3</div>
-        <div>{top3_content}</div>
-        <div class="metric-badge">Key Terrirories</div>
-    </div>
-    """,
+        f'<div class="metric-card">'
+        f'<div class="metric-title" style="margin-bottom:6px;">모객 거주지 TOP 3</div>'
+        f'{top3_content}'
+        f'<div class="metric-badge">Key Territories</div>'
+        f'</div>',
         unsafe_allow_html=True,
     )
 
 st.markdown("<div style='height: 18px;'></div>", unsafe_allow_html=True)
 
-# ----------------- 8. Harvey 스타일 모노톤 차트 테마 -----------------
-# 딥 차콜, 슬레이트, 세이지 그레이 등 미니멀한 모노크롬 팔레트
+# ----------------- 8. Harvey 스타일 모노톤 차트 테마 (오류 수정 완료) -----------------
 FORMAL_COLORS = ["#18181b", "#3f3f46", "#71717a", "#a1a1aa", "#d4d4d8", "#e4e4e7"]
 
+# linecolor='transparent' 제거 -> showline=False 로 수정하여 ValueError 해결
 formal_layout = dict(
     paper_bgcolor="#ffffff",
     plot_bgcolor="#ffffff",
@@ -545,6 +529,7 @@ formal_layout = dict(
     ),
     xaxis=dict(
         showgrid=False,
+        showline=True,
         linecolor="#e4e4e7",
         tickcolor="#e4e4e7",
         tickfont=dict(size=11, color="#71717a"),
@@ -552,7 +537,7 @@ formal_layout = dict(
     yaxis=dict(
         showgrid=True,
         gridcolor="#f4f4f5",
-        linecolor="transparent",
+        showline=False,
         tickfont=dict(size=11, color="#71717a"),
     ),
 )
