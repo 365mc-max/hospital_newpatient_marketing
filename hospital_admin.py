@@ -16,37 +16,6 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# 하트 들고 있는 3D 지방이 캐릭터 (100% 온전한 Base64 무손실 내장)
-JIBANG_IMG_B64 = "data:image/jpeg;base64," + (
-    "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYa"
-    "HSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgo"
-    "KCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAB4AHgDASIAAhEBAxEB/8QA"
-    "HwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIh"
-    "MUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVW"
-    "V1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXG"
-    "x8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQB"
-    "FgQUFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqChIWGh4iJ"
-    "ipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP0"
-    "9fb3+Pn6/9oADAMBAAIRAxEAPwD5/ooorujFydkcs5qCuxGYKpZjgDkmtzSNCudRAlmJtrQ/xkfM/wBB"
-    "/jUvg/Tf7Q1A3cy7re2IYA9GfsP6/gPWu3r0KdJR1e55NWs5OyM+z0TTbNB5Vokjj+OYb2J/Hp+FXhFE"
-    "sflrEgT+6FGPyp1FdCSWxytvqVLnTbC6GJ7OBz/AHtgB/Mc1kXng6xlBazuJrZ/7rfOv+P610dFOMmno"
-    "JSktmcXF4JvpZGDXdrFGOjHcxb8MDH510Ph3wbpmnyrLdk39yP74wg/4D3/E/hWtRWsZSZpOrKUbI0p5"
-    "fMIVRhF4AFTWV15TCOT/AFZ/SsqGTeMfxCpq1OJnVRyq1upDAknrUNzHHOhWZQwIxnHNY1rcbPlc/L2P"
-    "pWlFMpX52AI9+tMgyb7TmgzJFl4uvHUVSrqEdXXKkEH0rPvdNEhMlvhW7r2NcmKwftffh8X5nVhsV7P3"
-    "Z7GDRTyjB2VhgqSD7UV4rTi7M9VOLV0fONdR4Z8P/btt5eqRagdIxwZfr6D+f51l6Dpx1PVIbY5ER+aR"
-    "h2Udf8Pxr0eNEjRUjUKijCqBgAegFduDp8z52eZiqnKuVEF5aR3Fi9rjy4yuF2jGzHQj6Vy8nhy7Utsu"
-    "IWXPy5yCR78cV2FFeg4qW55qk47HE/8ACPX39+3/AO+j/hR/wj19/ft/++j/AIV21FR7GJV7VnE/8I9f"
-    "f37f/vo/4Uf8I9ff37f/vo/4V21FHsYh7WZwf8AYWof3Iv+/g/wo/sLUf7kP/fwf4V3lFHsYj9tM4m20"
-    "PUEnjdlh2qwJw/b8q6u30+6m2skJ2k/ebgVeqWCeSA/Ifl7qehrSMFEzlOUtWTW+kMvM0wHsgq42n2pj"
-    "2eWffcTk/jVWfUj5ZEKEMf4m7VVW8uVbPnMT78/zq7GZrWtmLVWCyOwPY9BViq1jeC5Xa/yygcgdD71Z"
-    "poCjcaZZzSs7xYZuTtbGTRU0tzDExV3AYdRiiuWeDoyd3FG8cVWirJs8D8C2YttOlvpvla4Py57Iv/18"
-    "/lXQf2hb/wDTX/vhv8KKKK81FKKRNSblJth/aFv/ANNf++G/wo/tC3/6a/8AfDf4UUVRIf2hb/8ATX/v"
-    "hv8ACj+0Lf8A6a/98N/hRRQAf2hb/wDTX/vhv8KP7Qt/+mv/AHw3+FFFAB/aFv8A9Nf++G/wo/tC3/6a"
-    "/wDfDf4UUUAH9oW//TX/AL4b/Co5NTijQt5c7ewjP/1qKKAKL+INzFUs7jH95lAH6ZqP+3Z/4bY/8CP+"
-    "FFFADotfuYmDw25V15DeaOPwxWhB4uvJUG63WJ/4tx3AfTAoorSMFJaozlOUXozSh1i6kQMY4Rn03f40"
-    "UUV2wVoo5pu7CiiiqIP/2Q=="
-)
-
 st.markdown(
     """
 <style>
@@ -375,15 +344,12 @@ try:
 finally:
     conn.close()
 
-# ----------------- 5. 사이드바 (지방이 캐릭터 완벽 표시) -----------------
+# ----------------- 5. 사이드바 (사진 제거 완료) -----------------
 with st.sidebar:
-    avatar_tag = f'<img src="{JIBANG_IMG_B64}" style="width: 76px; height: 76px; border-radius: 50%; object-fit: cover; border: 2px solid #ffffff; background: #ffffff; box-shadow: 0 4px 12px rgba(0,0,0,0.4);">'
-
     st.markdown(
-        f'<div style="text-align: center; padding: 12px 0 16px 0;">'
-        f'{avatar_tag}'
-        f'<div style="font-size:1.2rem; font-weight:700; color:#ffffff; margin-top:8px;">365MC Intelligence</div>'
-        f'<div style="font-size:0.75rem; color:#a1a1aa; margin-top:2px;">신환 유입 & 상권 분석 시스템</div>'
+        f'<div style="text-align: center; padding: 20px 0 16px 0;">'
+        f'<div style="font-size:1.35rem; font-weight:700; color:#ffffff;">365MC Intelligence</div>'
+        f'<div style="font-size:0.8rem; color:#a1a1aa; margin-top:4px;">신환 유입 & 상권 분석 시스템</div>'
         f'</div>',
         unsafe_allow_html=True,
     )
@@ -450,7 +416,7 @@ with st.sidebar:
             st.success("데이터베이스 동기화 완료")
             st.rerun()
 
-# ----------------- 6. 메인 화면 레이아웃 -----------------
+# ----------------- 6. 메인 화면 레이아웃 (사진 제거 완료) -----------------
 if df_channels.empty:
     st.markdown(
         '<div style="padding: 60px 0; text-align: center;">'
@@ -473,16 +439,12 @@ if sel_branch != "전지점(통합)":
     f_vir = f_vir[f_vir["지점명"] == sel_branch]
     f_vsum = f_vsum[f_vsum["지점명"] == sel_branch]
 
-# 상단 헤더: 타이틀 옆에 지방이 엠블럼 배치
-header_jibang = f'<img src="{JIBANG_IMG_B64}" style="width: 44px; height: 44px; border-radius: 50%; object-fit: cover; margin-left: 12px; border: 1.5px solid #e2e8f0; vertical-align: middle;">'
-
 st.markdown(
     f'<div style="margin-bottom: 24px;">'
     f'<div style="display: flex; align-items: center;">'
     f'<span style="font-weight: 700; font-size: 2.1rem; color: #0f172a; letter-spacing: -0.03em;">365MC 환자 관리 센터 — {sel_branch}</span>'
-    f'{header_jibang}'
     f'</div>'
-    f'<div style="color: #64748b; font-size: 0.92rem; font-weight: 500; margin-top: 4px;">'
+    f'<div style="color: #64748b; font-size: 0.92rem; font-weight: 500; margin-top: 6px;">'
     f'분석 기준월: <b>{sel_period}</b> &nbsp;|&nbsp; 데이터 검증 완료 (Verified)'
     f'</div>'
     f'</div>',
