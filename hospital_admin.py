@@ -1,13 +1,13 @@
 import os
 import re
+import sqlite3
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 
-DATA_DIR = "data_store"
-os.makedirs(DATA_DIR, exist_ok=True)
-PARSED_MASTER_FILE = os.path.join(DATA_DIR, "master_parsed_analytics.parquet")
+# DB 파일 경로 설정
+DB_FILE = "hospital_analytics.db"
 
 # ----------------- 페이지 설정 & SaaS 스타일 CSS -----------------
 st.set_page_config(
@@ -64,7 +64,6 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# ----------------- 전문 파서 엔진 -----------------
 COLOR_PALETTE = [
     "#4f46e5",
     "#6366f1",
@@ -77,16 +76,50 @@ COLOR_PALETTE = [
 ]
 
 
+# ----------------- DB 관리 함수 -----------------
+def init_db():
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    c.execute(
+        """CREATE TABLE IF NOT EXISTS regions (
+                    기간 TEXT, 지점명 TEXT, 거주지역 TEXT, 신환수 INTEGER,
+                    PRIMARY KEY(기간, 지점명, 거주지역)
+                 )"""
+    )
+    c.execute(
+        """CREATE TABLE IF NOT EXISTS channels (
+                    기간 TEXT, 지점명 TEXT, 유입경로 TEXT, 유입수 INTEGER,
+                    PRIMARY KEY(기간, 지점명, 유입경로)
+                 )"""
+    )
+    c.execute(
+        """CREATE TABLE IF NOT EXISTS viral (
+                    기간 TEXT, 지점명 TEXT, 바이럴채널 TEXT, 유입수 INTEGER,
+                    PRIMARY KEY(기간, 지점명, 바이럴채널)
+                 )"""
+    )
+    c.execute(
+        """CREATE TABLE IF NOT EXISTS viral_summary (
+                    기간 TEXT, 지점명 TEXT, 전체유입건수 INTEGER, 바이럴유입건수 INTEGER, 바이럴비중 REAL,
+                    PRIMARY KEY(기간, 지점명)
+                 )"""
+    )
+    conn.commit()
+    conn.close()
+
+
+init_db()
+
+
 def extract_period_from_name(filename):
-    """파일명에서 연월(YY.MM 등) 추출"""
     match = re.search(r"\((\d{2})\.(\d{2})\)", filename)
     if match:
         return f"20{match.group(1)}-{match.group(2)}"
-    return "2024-03"  # 기본값
+    return "2024-03"
 
 
+# ----------------- 파서 엔진 (KeyError 수정 완료) -----------------
 def parse_hospital_excel(file_bytes, period_label):
-    """지점별 시트 내 복수 테이블(지역, 전체경로, 바이럴채널) 및 집계시트 자동 파싱"""
     xls = pd.ExcelFile(file_bytes)
     sheet_names = xls.sheet_names
 
@@ -97,10 +130,11 @@ def parse_hospital_excel(file_bytes, period_label):
 
     for sheet in sheet_names:
         if sheet == "바이럴신환유입":
-            df_v = pd.read_excel(xls, sheet_name=sheet)
-            # 2행부터 데이터 위치
+            df_v = pd.read_excel(xls, sheet_name=sheet, header=None)
             for r in range(len(df_v)):
                 row_vals = df_v.iloc[r].values
+                if len(row_vals) < 5:
+                    continue
                 branch = str(row_vals[1]).strip()
                 if (
                     branch
@@ -127,12 +161,11 @@ def parse_hospital_excel(file_bytes, period_label):
                         continue
             continue
 
-        # 지점별 시트 파싱
-        df = pd.read_excel(xls, sheet_name=sheet)
+        df = pd.read_excel(xls, sheet_name=sheet, header=None)
 
-        # 1. 헤더 행 위치 탐색 ('지역', '경로')
+        # 헤더 행 위치 탐색 ('지역', '경로')
         header_row_idx = None
-        for r in range(min(5, len(df))):
+        for r in range(min(6, len(df))):
             vals = [str(x).strip() for x in df.iloc[r].dropna()]
             if "지역" in vals and "경로" in vals:
                 header_row_idx = r
@@ -141,11 +174,12 @@ def parse_hospital_excel(file_bytes, period_label):
         if header_row_idx is None:
             continue
 
-        h_row = df.iloc[header_row_idx]
+        # .values 로 접근하여 KeyError 완전 방지
+        h_vals = df.iloc[header_row_idx].values
         region_col, channel_col, viral_col = None, None, None
 
-        for c in range(len(h_row)):
-            val = str(h_row[c]).strip()
+        for c, raw_val in enumerate(h_vals):
+            val = str(raw_val).strip()
             if val == "지역" and region_col is None:
                 region_col = c
             elif val == "경로":
@@ -153,8 +187,8 @@ def parse_hospital_excel(file_bytes, period_label):
             elif "바이럴" in val:
                 viral_col = c
 
-        # 지역별 데이터 추출
-        if region_col is not None:
+        # 1. 지역별 추출
+        if region_col is not None and region_col + 1 < df.shape[1]:
             for r in range(header_row_idx + 1, len(df)):
                 reg = df.iloc[r, region_col]
                 cnt = df.iloc[r, region_col + 1]
@@ -163,18 +197,21 @@ def parse_hospital_excel(file_bytes, period_label):
                     and str(reg).strip()
                     and str(reg).strip() != "nan"
                 ):
-                    if pd.notna(cnt) and str(cnt).strip().isdigit():
+                    try:
+                        c_num = int(cnt)
                         region_records.append(
                             {
                                 "기간": period_label,
                                 "지점명": sheet,
                                 "거주지역": str(reg).strip(),
-                                "신환수": int(cnt),
+                                "신환수": c_num,
                             }
                         )
+                    except (ValueError, TypeError):
+                        pass
 
-        # 전체 유입경로 추출
-        if channel_col is not None:
+        # 2. 전체 유입경로 추출
+        if channel_col is not None and channel_col + 1 < df.shape[1]:
             for r in range(header_row_idx + 1, len(df)):
                 ch = df.iloc[r, channel_col]
                 cnt = df.iloc[r, channel_col + 1]
@@ -183,18 +220,21 @@ def parse_hospital_excel(file_bytes, period_label):
                     and str(ch).strip()
                     and str(ch).strip() != "nan"
                 ):
-                    if pd.notna(cnt) and str(cnt).strip().isdigit():
+                    try:
+                        c_num = int(cnt)
                         channel_records.append(
                             {
                                 "기간": period_label,
                                 "지점명": sheet,
                                 "유입경로": str(ch).strip(),
-                                "유입수": int(cnt),
+                                "유입수": c_num,
                             }
                         )
+                    except (ValueError, TypeError):
+                        pass
 
-        # 바이럴 세부채널 추출
-        if viral_col is not None:
+        # 3. 바이럴 세부채널 추출
+        if viral_col is not None and viral_col + 1 < df.shape[1]:
             for r in range(header_row_idx + 1, len(df)):
                 vch = df.iloc[r, viral_col]
                 cnt = df.iloc[r, viral_col + 1]
@@ -203,15 +243,18 @@ def parse_hospital_excel(file_bytes, period_label):
                     and str(vch).strip()
                     and str(vch).strip() != "nan"
                 ):
-                    if pd.notna(cnt) and str(cnt).strip().isdigit():
+                    try:
+                        c_num = int(cnt)
                         viral_records.append(
                             {
                                 "기간": period_label,
                                 "지점명": sheet,
                                 "바이럴채널": str(vch).strip(),
-                                "유입수": int(cnt),
+                                "유입수": c_num,
                             }
                         )
+                    except (ValueError, TypeError):
+                        pass
 
     return (
         pd.DataFrame(region_records),
@@ -219,14 +262,6 @@ def parse_hospital_excel(file_bytes, period_label):
         pd.DataFrame(viral_records),
         pd.DataFrame(viral_summary_records),
     )
-
-
-# ----------------- 데이터 저장 및 로드 매니저 -----------------
-@st.cache_data
-def get_stored_data():
-    if os.path.exists(PARSED_MASTER_FILE):
-        return pd.read_parquet(PARSED_MASTER_FILE)
-    return None
 
 
 # ----------------- 사이드바 설정 -----------------
@@ -241,53 +276,62 @@ with st.sidebar:
     )
 
     if uploaded_files:
-        all_r, all_c, all_v, all_vs = [], [], [], []
-        for file in uploaded_files:
-            period_tag = extract_period_from_name(file.name)
-            df_r, df_c, df_v, df_vs = parse_hospital_excel(file, period_tag)
-            all_r.append(df_r)
-            all_c.append(df_c)
-            all_v.append(df_v)
-            all_vs.append(df_vs)
-
         if st.button("데이터 파싱 및 누적 저장", use_container_width=True):
-            r_full = pd.concat(all_r, ignore_index=True).drop_duplicates()
-            c_full = pd.concat(all_c, ignore_index=True).drop_duplicates()
-            v_full = pd.concat(all_v, ignore_index=True).drop_duplicates()
-            vs_full = pd.concat(all_vs, ignore_index=True).drop_duplicates()
+            conn = sqlite3.connect(DB_FILE)
+            for file in uploaded_files:
+                period_tag = extract_period_from_name(file.name)
+                df_r, df_c, df_v, df_vs = parse_hospital_excel(file, period_tag)
 
-            # 저장
-            r_full.to_parquet(
-                os.path.join(DATA_DIR, "regions.parquet"), index=False
-            )
-            c_full.to_parquet(
-                os.path.join(DATA_DIR, "channels.parquet"), index=False
-            )
-            v_full.to_parquet(
-                os.path.join(DATA_DIR, "viral.parquet"), index=False
-            )
-            vs_full.to_parquet(
-                os.path.join(DATA_DIR, "viral_summary.parquet"), index=False
-            )
-            st.success("데이터 파싱 및 누적이 완료되었습니다!")
+                # SQLite에 누적 저장 (동일 키는 대체)
+                if not df_r.empty:
+                    df_r.to_sql(
+                        "regions",
+                        conn,
+                        if_exists="append",
+                        index=False,
+                    )
+                if not df_c.empty:
+                    df_c.to_sql(
+                        "channels",
+                        conn,
+                        if_exists="append",
+                        index=False,
+                    )
+                if not df_v.empty:
+                    df_v.to_sql(
+                        "viral", conn, if_exists="append", index=False
+                    )
+                if not df_vs.empty:
+                    df_vs.to_sql(
+                        "viral_summary",
+                        conn,
+                        if_exists="append",
+                        index=False,
+                    )
+
+            conn.close()
+            st.success("데이터 파싱 및 누적 저장 완료!")
             st.rerun()
 
-# ----------------- 데이터 로드 확인 -----------------
-reg_path = os.path.join(DATA_DIR, "regions.parquet")
-ch_path = os.path.join(DATA_DIR, "channels.parquet")
-vir_path = os.path.join(DATA_DIR, "viral.parquet")
-vsum_path = os.path.join(DATA_DIR, "viral_summary.parquet")
+# ----------------- DB 데이터 로드 -----------------
+conn = sqlite3.connect(DB_FILE)
+try:
+    df_channels = pd.read_sql_query(
+        "SELECT DISTINCT * FROM channels", conn
+    )
+    df_regions = pd.read_sql_query("SELECT DISTINCT * FROM regions", conn)
+    df_viral = pd.read_sql_query("SELECT DISTINCT * FROM viral", conn)
+    df_vsum = pd.read_sql_query(
+        "SELECT DISTINCT * FROM viral_summary", conn
+    )
+finally:
+    conn.close()
 
-if not os.path.exists(ch_path):
+if df_channels.empty:
     st.info(
-        "👋 좌측 사이드바에서 `람스 신환조사` 엑셀 파일을 업로드하고 [데이터 파싱 및 누적 저장]을 눌러주세요."
+        "👋 좌측 사이드바에서 `람스 신환조사` 엑셀 파일을 업로드하고 [데이터 파싱 및 누적 저장] 버튼을 눌러주세요."
     )
     st.stop()
-
-df_regions = pd.read_parquet(reg_path)
-df_channels = pd.read_parquet(ch_path)
-df_viral = pd.read_parquet(vir_path)
-df_vsum = pd.read_parquet(vsum_path)
 
 # ----------------- 필터 UI -----------------
 with st.sidebar:
@@ -316,15 +360,15 @@ if sel_branch != "전지점(통합)":
     f_vir = f_vir[f_vir["지점명"] == sel_branch]
     f_vsum = f_vsum[f_vsum["지점명"] == sel_branch]
 
-# ----------------- 메인 대시보드 뷰 -----------------
+# ----------------- 메인 대시보드 -----------------
 st.markdown(
     f"<h2 style='color: #1e1b4b; margin-bottom: 0px;'>📈 {sel_branch} 마케팅 성과 대시보드</h2>"
     f"<p style='color: #64748b; font-size: 0.95rem; margin-top: 4px;'>분석 기준월: <b>{sel_period}</b></p>",
     unsafe_allow_html=True,
 )
 
-# KPI 4대 지표 카드 계산
-total_touches = f_ch["유입수"].sum()
+# 핵심 지표 카드 계산
+total_touches = f_ch["유입수"].sum() if not f_ch.empty else 0
 top_channel = (
     f_ch.groupby("유입경로")["유입수"].sum().idxmax()
     if not f_ch.empty
@@ -349,16 +393,16 @@ with k1:
         f"""<div class="metric-card">
         <div class="metric-title">총 유입 접점수</div>
         <div class="metric-value">{total_touches:,} <span style="font-size:1rem;">건</span></div>
-        <div class="metric-badge">All Inflow Touchpoints</div>
+        <div class="metric-badge">Total Inflows</div>
     </div>""",
         unsafe_allow_html=True,
     )
 with k2:
     st.markdown(
         f"""<div class="metric-card">
-        <div class="metric-title">최대 전환 경로</div>
-        <div class="metric-value" style="font-size:1.35rem; line-height: 2rem;">{top_channel}</div>
-        <div class="metric-badge">Core Marketing Channel</div>
+        <div class="metric-title">최대 유입 채널</div>
+        <div class="metric-value" style="font-size:1.3rem; line-height: 2rem;">{top_channel}</div>
+        <div class="metric-badge">Top Performing</div>
     </div>""",
         unsafe_allow_html=True,
     )
@@ -367,21 +411,20 @@ with k3:
         f"""<div class="metric-card">
         <div class="metric-title">바이럴 기여율</div>
         <div class="metric-value">{viral_rate}%</div>
-        <div class="metric-badge">Blog/Cafe/SNS Organic</div>
+        <div class="metric-badge">Blog/SNS Organic</div>
     </div>""",
         unsafe_allow_html=True,
     )
 with k4:
     st.markdown(
         f"""<div class="metric-card">
-        <div class="metric-title">핵심 모객 상권(1위)</div>
-        <div class="metric-value" style="font-size:1.35rem; line-height: 2rem;">{top_residence}</div>
-        <div class="metric-badge">Top Residential Area</div>
+        <div class="metric-title">최대 모객 거주지</div>
+        <div class="metric-value" style="font-size:1.3rem; line-height: 2rem;">{top_residence}</div>
+        <div class="metric-badge">Core Region</div>
     </div>""",
         unsafe_allow_html=True,
     )
 
-# 공통 차트 레이아웃 템플릿
 layout_opts = dict(
     paper_bgcolor="rgba(255,255,255,1)",
     plot_bgcolor="rgba(255,255,255,1)",
@@ -391,16 +434,14 @@ layout_opts = dict(
     yaxis=dict(showgrid=True, gridcolor="#f8fafc", linecolor="#f1f5f9"),
 )
 
-# ----------------- 마케팅 인텔리전스 탭 분할 -----------------
+# 탭 메뉴
 tab1, tab2, tab3 = st.tabs(
     ["🎯 유입 채널 & 바이럴 심층분석", "🗺️ 거주지 상권 분석", "📊 지점별 비교 (Rank)"]
 )
 
 with tab1:
     c1, c2 = st.columns([1.3, 1])
-
     with c1:
-        # 전체 유입 채널 랭킹
         ch_sum = (
             f_ch.groupby("유입경로")["유입수"]
             .sum()
@@ -413,14 +454,13 @@ with tab1:
             y="유입경로",
             orientation="h",
             text_auto=True,
-            title="<b>전체 유입경로 Top 12 (온/오프라인)</b>",
+            title="<b>전체 유입경로 Top 12</b>",
             color_discrete_sequence=["#4f46e5"],
         )
         fig_ch.update_layout(**layout_opts)
         st.plotly_chart(fig_ch, use_container_width=True)
 
     with c2:
-        # 바이럴 세부 채널 도넛 차트
         v_sum = (
             f_vir.groupby("바이럴채널")["유입수"]
             .sum()
@@ -432,14 +472,18 @@ with tab1:
             names="바이럴채널",
             values="유입수",
             hole=0.6,
-            title="<b>바이럴 세부 유입 믹스 (블로그·카페·SNS)</b>",
+            title="<b>바이럴 세부 유입 믹스</b>",
             color_discrete_sequence=COLOR_PALETTE,
         )
         fig_vir.update_layout(
             paper_bgcolor="rgba(255,255,255,1)",
             margin=dict(l=10, r=10, t=35, b=10),
             legend=dict(
-                orientation="h", yanchor="bottom", y=-0.15, xanchor="center", x=0.5
+                orientation="h",
+                yanchor="bottom",
+                y=-0.15,
+                xanchor="center",
+                x=0.5,
             ),
         )
         st.plotly_chart(fig_vir, use_container_width=True)
@@ -447,7 +491,6 @@ with tab1:
 with tab2:
     r1, r2 = st.columns([1.2, 1])
     with r1:
-        # 거주지 상위 지역 랭킹
         reg_sum = (
             f_reg.groupby("거주지역")["신환수"]
             .sum()
@@ -460,14 +503,13 @@ with tab2:
             y="거주지역",
             orientation="h",
             text_auto=True,
-            title="<b>내원 신환 상위 거주지 (Top 15 권역)</b>",
+            title="<b>신환 상위 거주지 (Top 15)</b>",
             color_discrete_sequence=["#fb7185"],
         )
         fig_reg.update_layout(**layout_opts)
         st.plotly_chart(fig_reg, use_container_width=True)
 
     with r2:
-        # 서울 vs 경기/타지역 비중 간이 분석
         if not f_reg.empty:
             f_reg_copy = f_reg.copy()
             f_reg_copy["권역분류"] = f_reg_copy["거주지역"].apply(
@@ -483,7 +525,7 @@ with tab2:
                 names="권역분류",
                 values="신환수",
                 hole=0.55,
-                title="<b>광역 권역별 환자 비중</b>",
+                title="<b>광역 권역별 비중</b>",
                 color_discrete_sequence=["#818cf8", "#f43f5e", "#fbbf24"],
             )
             fig_area.update_layout(
@@ -501,8 +543,6 @@ with tab2:
 
 with tab3:
     if sel_branch == "전지점(통합)":
-        st.markdown("#### 🏆 지점별 바이럴 마케팅 기여율 순위")
-        # 바이럴 기여율 내림차순 정렬
         sorted_vs = f_vsum.sort_values(by="바이럴비중", ascending=False)
         fig_rank = px.bar(
             sorted_vs,
