@@ -6,12 +6,11 @@ import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 
-# DB 파일 경로 설정
 DB_FILE = "hospital_analytics.db"
 
-# ----------------- 페이지 설정 & SaaS 스타일 CSS -----------------
+# ----------------- 1. 페이지 설정 & 모던 UI 스타일 -----------------
 st.set_page_config(
-    page_title="LAMS 신환 마케팅 인텔리전스",
+    page_title="365MC NEW Patient Dashboard",
     page_icon="💉",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -25,7 +24,7 @@ st.markdown(
         font-family: -apple-system, BlinkMacSystemFont, "Pretendard", "Segoe UI", sans-serif;
     }
     [data-testid="stSidebar"] {
-        background-color: rgba(255, 255, 255, 0.92);
+        background-color: rgba(255, 255, 255, 0.94);
         backdrop-filter: blur(12px);
         border-right: 1px solid #e2dcfa;
     }
@@ -36,28 +35,47 @@ st.markdown(
         box-shadow: 0 4px 20px rgba(99, 102, 241, 0.06);
         border: 1px solid #f0eef9;
         margin-bottom: 12px;
+        min-height: 140px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
     }
     .metric-title {
         color: #64748b;
         font-size: 0.82rem;
         font-weight: 600;
         text-transform: uppercase;
-        margin-bottom: 6px;
+        margin-bottom: 4px;
     }
     .metric-value {
         color: #1e1b4b;
-        font-size: 1.8rem;
+        font-size: 1.75rem;
         font-weight: 700;
+        line-height: 1.3;
     }
     .metric-badge {
         display: inline-flex;
-        font-size: 0.75rem;
+        font-size: 0.72rem;
         font-weight: 600;
         color: #4f46e5;
         background: #eef2ff;
         padding: 2px 8px;
         border-radius: 6px;
-        margin-top: 4px;
+        width: fit-content;
+        margin-top: 6px;
+    }
+    .top3-item {
+        font-size: 0.88rem;
+        color: #1e1b4b;
+        font-weight: 600;
+        margin: 1px 0;
+        display: flex;
+        justify-content: space-between;
+    }
+    .top3-rank {
+        color: #6366f1;
+        font-weight: 700;
+        margin-right: 4px;
     }
 </style>
 """,
@@ -76,7 +94,7 @@ COLOR_PALETTE = [
 ]
 
 
-# ----------------- DB 관리 함수 -----------------
+# ----------------- 2. SQLite DB 초기화 -----------------
 def init_db():
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
@@ -118,7 +136,7 @@ def extract_period_from_name(filename):
     return "2024-03"
 
 
-# ----------------- 파서 엔진 (KeyError 수정 완료) -----------------
+# ----------------- 3. 엑셀 파서 엔진 (안정성 확보) -----------------
 def parse_hospital_excel(file_bytes, period_label):
     xls = pd.ExcelFile(file_bytes)
     sheet_names = xls.sheet_names
@@ -163,7 +181,7 @@ def parse_hospital_excel(file_bytes, period_label):
 
         df = pd.read_excel(xls, sheet_name=sheet, header=None)
 
-        # 헤더 행 위치 탐색 ('지역', '경로')
+        # 헤더 탐색
         header_row_idx = None
         for r in range(min(6, len(df))):
             vals = [str(x).strip() for x in df.iloc[r].dropna()]
@@ -174,7 +192,6 @@ def parse_hospital_excel(file_bytes, period_label):
         if header_row_idx is None:
             continue
 
-        # .values 로 접근하여 KeyError 완전 방지
         h_vals = df.iloc[header_row_idx].values
         region_col, channel_col, viral_col = None, None, None
 
@@ -187,7 +204,7 @@ def parse_hospital_excel(file_bytes, period_label):
             elif "바이럴" in val:
                 viral_col = c
 
-        # 1. 지역별 추출
+        # 1) 거주 지역
         if region_col is not None and region_col + 1 < df.shape[1]:
             for r in range(header_row_idx + 1, len(df)):
                 reg = df.iloc[r, region_col]
@@ -198,19 +215,18 @@ def parse_hospital_excel(file_bytes, period_label):
                     and str(reg).strip() != "nan"
                 ):
                     try:
-                        c_num = int(cnt)
                         region_records.append(
                             {
                                 "기간": period_label,
                                 "지점명": sheet,
                                 "거주지역": str(reg).strip(),
-                                "신환수": c_num,
+                                "신환수": int(cnt),
                             }
                         )
                     except (ValueError, TypeError):
                         pass
 
-        # 2. 전체 유입경로 추출
+        # 2) 전체 유입 경로
         if channel_col is not None and channel_col + 1 < df.shape[1]:
             for r in range(header_row_idx + 1, len(df)):
                 ch = df.iloc[r, channel_col]
@@ -221,19 +237,18 @@ def parse_hospital_excel(file_bytes, period_label):
                     and str(ch).strip() != "nan"
                 ):
                     try:
-                        c_num = int(cnt)
                         channel_records.append(
                             {
                                 "기간": period_label,
                                 "지점명": sheet,
                                 "유입경로": str(ch).strip(),
-                                "유입수": c_num,
+                                "유입수": int(cnt),
                             }
                         )
                     except (ValueError, TypeError):
                         pass
 
-        # 3. 바이럴 세부채널 추출
+        # 3) 바이럴 세부 경로
         if viral_col is not None and viral_col + 1 < df.shape[1]:
             for r in range(header_row_idx + 1, len(df)):
                 vch = df.iloc[r, viral_col]
@@ -244,13 +259,12 @@ def parse_hospital_excel(file_bytes, period_label):
                     and str(vch).strip() != "nan"
                 ):
                     try:
-                        c_num = int(cnt)
                         viral_records.append(
                             {
                                 "기간": period_label,
                                 "지점명": sheet,
                                 "바이럴채널": str(vch).strip(),
-                                "유입수": c_num,
+                                "유입수": int(cnt),
                             }
                         )
                     except (ValueError, TypeError):
@@ -264,56 +278,7 @@ def parse_hospital_excel(file_bytes, period_label):
     )
 
 
-# ----------------- 사이드바 설정 -----------------
-with st.sidebar:
-    st.markdown("### 🏥 LAMS Marketing HQ")
-    st.caption("신환 유입 & 상권 분석 시스템")
-
-    uploaded_files = st.file_uploader(
-        "신환 조사 엑셀 파일 업로드 (다중 선택 가능)",
-        type=["xlsx"],
-        accept_multiple_files=True,
-    )
-
-    if uploaded_files:
-        if st.button("데이터 파싱 및 누적 저장", use_container_width=True):
-            conn = sqlite3.connect(DB_FILE)
-            for file in uploaded_files:
-                period_tag = extract_period_from_name(file.name)
-                df_r, df_c, df_v, df_vs = parse_hospital_excel(file, period_tag)
-
-                # SQLite에 누적 저장 (동일 키는 대체)
-                if not df_r.empty:
-                    df_r.to_sql(
-                        "regions",
-                        conn,
-                        if_exists="append",
-                        index=False,
-                    )
-                if not df_c.empty:
-                    df_c.to_sql(
-                        "channels",
-                        conn,
-                        if_exists="append",
-                        index=False,
-                    )
-                if not df_v.empty:
-                    df_v.to_sql(
-                        "viral", conn, if_exists="append", index=False
-                    )
-                if not df_vs.empty:
-                    df_vs.to_sql(
-                        "viral_summary",
-                        conn,
-                        if_exists="append",
-                        index=False,
-                    )
-
-            conn.close()
-            st.success("데이터 파싱 및 누적 저장 완료!")
-            st.rerun()
-
-# ----------------- DB 데이터 로드 -----------------
+# ----------------- 4. DB 데이터 조회 -----------------
 conn = sqlite3.connect(DB_FILE)
 try:
     df_channels = pd.read_sql_query(
@@ -327,26 +292,75 @@ try:
 finally:
     conn.close()
 
+
+# ----------------- 5. 사이드바 구성 (순서 변경 적용) -----------------
+with st.sidebar:
+    st.markdown("### 🏥 365MC NEW Patient Dashboard")
+    st.caption("신환 유입 & 상권 분석 시스템")
+
+    # [수정 1] 상단: 분석 필터
+    st.markdown("---")
+    st.markdown("#### 🔍 분석 필터")
+
+    if not df_channels.empty:
+        periods = sorted(df_channels["기간"].unique().tolist())
+        sel_period = st.selectbox("📅 분석 월 선택", periods)
+
+        branches = ["전지점(통합)"] + sorted(
+            df_channels[df_channels["기간"] == sel_period]["지점명"]
+            .unique()
+            .tolist()
+        )
+        sel_branch = st.selectbox("🎯 지점 선택", branches)
+    else:
+        sel_period = None
+        sel_branch = None
+        st.warning("데이터가 없습니다. 아래에서 파일을 업로드해주세요.")
+
+    # [수정 1] 하단: 엑셀 파일 업로드
+    st.markdown("---")
+    st.markdown("#### 📤 신환조사 엑셀파일 업로드")
+    uploaded_files = st.file_uploader(
+        "엑셀 파일 (.xlsx)",
+        type=["xlsx"],
+        accept_multiple_files=True,
+    )
+
+    if uploaded_files:
+        if st.button("데이터 파싱 및 누적 저장", use_container_width=True):
+            conn = sqlite3.connect(DB_FILE)
+            for file in uploaded_files:
+                period_tag = extract_period_from_name(file.name)
+                df_r, df_c, df_v, df_vs = parse_hospital_excel(file, period_tag)
+
+                if not df_r.empty:
+                    df_r.to_sql(
+                        "regions", conn, if_exists="append", index=False
+                    )
+                if not df_c.empty:
+                    df_c.to_sql(
+                        "channels", conn, if_exists="append", index=False
+                    )
+                if not df_v.empty:
+                    df_v.to_sql("viral", conn, if_exists="append", index=False)
+                if not df_vs.empty:
+                    df_vs.to_sql(
+                        "viral_summary",
+                        conn,
+                        if_exists="append",
+                        index=False,
+                    )
+            conn.close()
+            st.success("데이터 파싱 및 누적 저장 완료!")
+            st.rerun()
+
+
+# ----------------- 6. 메인 화면 뷰 -----------------
 if df_channels.empty:
     st.info(
-        "👋 좌측 사이드바에서 `람스 신환조사` 엑셀 파일을 업로드하고 [데이터 파싱 및 누적 저장] 버튼을 눌러주세요."
+        "👋 좌측 사이드바 하단에서 `람스 신환조사` 엑셀 파일을 업로드하고 [데이터 파싱 및 누적 저장] 버튼을 눌러주세요."
     )
     st.stop()
-
-# ----------------- 필터 UI -----------------
-with st.sidebar:
-    st.markdown("---")
-    st.markdown("### 🔍 분석 필터")
-
-    periods = sorted(df_channels["기간"].unique().tolist())
-    sel_period = st.selectbox("분석 월 선택", periods)
-
-    branches = ["전지점(통합)"] + sorted(
-        df_channels[df_channels["기간"] == sel_period]["지점명"]
-        .unique()
-        .tolist()
-    )
-    sel_branch = st.selectbox("지점 선택", branches)
 
 # 필터 적용
 f_ch = df_channels[df_channels["기간"] == sel_period]
@@ -360,20 +374,24 @@ if sel_branch != "전지점(통합)":
     f_vir = f_vir[f_vir["지점명"] == sel_branch]
     f_vsum = f_vsum[f_vsum["지점명"] == sel_branch]
 
-# ----------------- 메인 대시보드 -----------------
 st.markdown(
-    f"<h2 style='color: #1e1b4b; margin-bottom: 0px;'>📈 {sel_branch} 마케팅 성과 대시보드</h2>"
+    f"<h2 style='color: #1e1b4b; margin-bottom: 0px;'>📈 {sel_branch} 성과 지표 요약</h2>"
     f"<p style='color: #64748b; font-size: 0.95rem; margin-top: 4px;'>분석 기준월: <b>{sel_period}</b></p>",
     unsafe_allow_html=True,
 )
 
-# 핵심 지표 카드 계산
-total_touches = f_ch["유입수"].sum() if not f_ch.empty else 0
+# ----------------- 7. 핵심 지표 계산 -----------------
+# 3. 총 신환 유입수
+total_inflows = f_ch["유입수"].sum() if not f_ch.empty else 0
+
+# 2위 카드: 최대 전환 경로
 top_channel = (
     f_ch.groupby("유입경로")["유입수"].sum().idxmax()
     if not f_ch.empty
     else "-"
 )
+
+# 5. 바이럴 기여율
 viral_rate = (
     round(
         (f_vsum["바이럴유입건수"].sum() / f_vsum["전체유입건수"].sum()) * 100, 1
@@ -381,50 +399,79 @@ viral_rate = (
     if not f_vsum.empty and f_vsum["전체유입건수"].sum() > 0
     else 0.0
 )
-top_residence = (
-    f_reg.groupby("거주지역")["신환수"].sum().idxmax()
-    if not f_reg.empty
-    else "-"
-)
 
+# 4. 모객 거주지 TOP3 계산
+top3_html = ""
+if not f_reg.empty:
+    top3_reg = (
+        f_reg.groupby("거주지역")["신환수"]
+        .sum()
+        .reset_index()
+        .sort_values(by="신환수", ascending=False)
+        .head(3)
+    )
+    for idx, row in enumerate(top3_reg.itertuples(), start=1):
+        top3_html += f"""
+        <div class="top3-item">
+            <span><span class="top3-rank">{idx}위</span> {row.거주지역}</span>
+            <span>{row.신환수:,}명</span>
+        </div>
+        """
+else:
+    top3_html = "<div style='color:#94a3b8;'>데이터 없음</div>"
+
+# ----------------- 8. 상단 4대 KPI 카드 렌더링 -----------------
 k1, k2, k3, k4 = st.columns(4)
+
 with k1:
     st.markdown(
         f"""<div class="metric-card">
-        <div class="metric-title">총 유입 접점수</div>
-        <div class="metric-value">{total_touches:,} <span style="font-size:1rem;">건</span></div>
-        <div class="metric-badge">Total Inflows</div>
-    </div>""",
-        unsafe_allow_html=True,
-    )
-with k2:
-    st.markdown(
-        f"""<div class="metric-card">
-        <div class="metric-title">최대 유입 채널</div>
-        <div class="metric-value" style="font-size:1.3rem; line-height: 2rem;">{top_channel}</div>
-        <div class="metric-badge">Top Performing</div>
-    </div>""",
-        unsafe_allow_html=True,
-    )
-with k3:
-    st.markdown(
-        f"""<div class="metric-card">
-        <div class="metric-title">바이럴 기여율</div>
-        <div class="metric-value">{viral_rate}%</div>
-        <div class="metric-badge">Blog/SNS Organic</div>
-    </div>""",
-        unsafe_allow_html=True,
-    )
-with k4:
-    st.markdown(
-        f"""<div class="metric-card">
-        <div class="metric-title">최대 모객 거주지</div>
-        <div class="metric-value" style="font-size:1.3rem; line-height: 2rem;">{top_residence}</div>
-        <div class="metric-badge">Core Region</div>
+        <div>
+            <div class="metric-title">총 신환 유입수</div>
+            <div class="metric-value">{total_inflows:,} <span style="font-size:1rem; font-weight:500;">건</span></div>
+        </div>
+        <div class="metric-badge">Total Inflow Contacts</div>
     </div>""",
         unsafe_allow_html=True,
     )
 
+with k2:
+    st.markdown(
+        f"""<div class="metric-card">
+        <div>
+            <div class="metric-title">최대 유입 채널</div>
+            <div class="metric-value" style="font-size:1.35rem; line-height: 1.8rem;">{top_channel}</div>
+        </div>
+        <div class="metric-badge">Top Performing Channel</div>
+    </div>""",
+        unsafe_allow_html=True,
+    )
+
+with k3:
+    st.markdown(
+        f"""<div class="metric-card">
+        <div>
+            <div class="metric-title">바이럴 기여율</div>
+            <div class="metric-value">{viral_rate}%</div>
+        </div>
+        <div class="metric-badge">Blog / SNS Organic</div>
+    </div>""",
+        unsafe_allow_html=True,
+    )
+
+with k4:
+    st.markdown(
+        f"""<div class="metric-card">
+        <div>
+            <div class="metric-title">모객 거주지 TOP 3</div>
+            {top3_html}
+        </div>
+        <div class="metric-badge">Top 3 Core Regions</div>
+    </div>""",
+        unsafe_allow_html=True,
+    )
+
+# ----------------- 9. 차트 레이아웃 -----------------
 layout_opts = dict(
     paper_bgcolor="rgba(255,255,255,1)",
     plot_bgcolor="rgba(255,255,255,1)",
@@ -434,9 +481,8 @@ layout_opts = dict(
     yaxis=dict(showgrid=True, gridcolor="#f8fafc", linecolor="#f1f5f9"),
 )
 
-# 탭 메뉴
 tab1, tab2, tab3 = st.tabs(
-    ["🎯 유입 채널 & 바이럴 심층분석", "🗺️ 거주지 상권 분석", "📊 지점별 비교 (Rank)"]
+    ["🎯 유입 채널 & 바이럴 심층분석", "🗺️️ 거주지 상권 분석", "📊 지점별 비교 (Rank)"]
 )
 
 with tab1:
