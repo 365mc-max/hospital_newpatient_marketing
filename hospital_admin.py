@@ -7,7 +7,7 @@ import plotly.graph_objects as go
 import streamlit as st
 
 DB_FILE = "hospital_analytics.db"
-ADMIN_PASSWORD = "365mc1234"  # 관리자 비밀번호 설정
+ADMIN_PASSWORD = "365mc1234"  # 관리자 비밀번호
 
 # ----------------- 1. 페이지 설정 및 스타일 -----------------
 st.set_page_config(
@@ -150,18 +150,14 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# ----------------- 2. 유입 성격 매핑 함수 -----------------
+# ----------------- 2. 매핑 및 유틸 함수 -----------------
 def map_inflow_nature(channel_name):
-    """
-    유입 성격(유료광고, 오가닉, 바이럴) 분류
-    - 포털검색어는 유입 성격 필터링에서 배제되도록 별도 분류
-    """
+    """유입 성격(유료광고, 오가닉, 바이럴) 분류"""
     ch = str(channel_name).strip()
 
     if any(k in ch for k in ["포털검색어", "검색어", "포털 검색어"]):
         return "포털검색어(제외)"
 
-    # 1. 유료광고
     paid_keywords = [
         "온라인광고", "기타광고", "신문/잡지", "신문", "잡지", 
         "극장광고", "극장", "라디오광고", "라디오", 
@@ -171,12 +167,10 @@ def map_inflow_nature(channel_name):
     if any(k in ch for k in paid_keywords):
         return "유료광고"
 
-    # 2. 오가닉
     organic_keywords = ["지인추천", "지인", "기타추천", "추천", "소개"]
     if any(k in ch for k in organic_keywords):
         return "오가닉"
 
-    # 3. 바이럴
     viral_keywords = [
         "블로그", "온라인추천", "카페", "기타후기", "후기", 
         "유튜브", "인스타그램", "인스타", "어플", "앱", "틱톡"
@@ -185,6 +179,28 @@ def map_inflow_nature(channel_name):
         return "바이럴"
 
     return "기타"
+
+def detect_branch_suffix(filename):
+    """파일명에서 람스/지방흡입 여부를 판별하여 지점명 접미사 반환"""
+    name = str(filename)
+    if "지방흡입" in name or "수술" in name:
+        return "(수술)"
+    elif "람스" in name:
+        return "(람스)"
+    return ""
+
+def format_branch_name(raw_name, suffix):
+    """지점명에 이미 접미사가 붙어있지 않다면 부여"""
+    name = str(raw_name).strip()
+    if suffix and not name.endswith(suffix):
+        return f"{name}{suffix}"
+    return name
+
+def extract_period_from_name(filename):
+    match = re.search(r"\((\d{2})\.(\d{2})\)", filename)
+    if match:
+        return f"20{match.group(1)}-{match.group(2)}"
+    return "2024-06"
 
 # ----------------- 3. SQLite DB 초기화 -----------------
 def init_db():
@@ -219,14 +235,8 @@ def init_db():
 
 init_db()
 
-def extract_period_from_name(filename):
-    match = re.search(r"\((\d{2})\.(\d{2})\)", filename)
-    if match:
-        return f"20{match.group(1)}-{match.group(2)}"
-    return "2024-03"
-
-# ----------------- 4. 엑셀 파서 엔진 -----------------
-def parse_hospital_excel(file_bytes, period_label):
+# ----------------- 4. 엑셀 파서 엔진 (람스/수술 지점 구분 반영) -----------------
+def parse_hospital_excel(file_bytes, period_label, suffix=""):
     xls = pd.ExcelFile(file_bytes)
     sheet_names = xls.sheet_names
 
@@ -248,10 +258,12 @@ def parse_hospital_excel(file_bytes, period_label):
                         tot_in = int(row_vals[2])
                         vir_in = int(row_vals[3])
                         ratio = float(row_vals[4]) if pd.notna(row_vals[4]) else 0.0
+                        
+                        target_branch = format_branch_name(branch, suffix)
                         viral_summary_records.append(
                             {
                                 "기간": period_label,
-                                "지점명": branch,
+                                "지점명": target_branch,
                                 "전체유입건수": tot_in,
                                 "바이럴유입건수": vir_in,
                                 "바이럴비중": round(ratio * 100, 1),
@@ -260,6 +272,8 @@ def parse_hospital_excel(file_bytes, period_label):
                     except (ValueError, TypeError):
                         continue
             continue
+
+        target_branch = format_branch_name(sheet, suffix)
 
         df = pd.read_excel(xls, sheet_name=sheet, header=None)
         header_row_idx = None
@@ -293,7 +307,7 @@ def parse_hospital_excel(file_bytes, period_label):
                         region_records.append(
                             {
                                 "기간": period_label,
-                                "지점명": sheet,
+                                "지점명": target_branch,
                                 "거주지역": str(reg).strip(),
                                 "신환수": int(cnt),
                             }
@@ -310,7 +324,7 @@ def parse_hospital_excel(file_bytes, period_label):
                         channel_records.append(
                             {
                                 "기간": period_label,
-                                "지점명": sheet,
+                                "지점명": target_branch,
                                 "유입경로": str(ch).strip(),
                                 "유입수": int(cnt),
                             }
@@ -327,7 +341,7 @@ def parse_hospital_excel(file_bytes, period_label):
                         viral_records.append(
                             {
                                 "기간": period_label,
-                                "지점명": sheet,
+                                "지점명": target_branch,
                                 "바이럴채널": str(vch).strip(),
                                 "유입수": int(cnt),
                             }
@@ -385,11 +399,9 @@ with st.sidebar:
             unsafe_allow_html=True,
         )
 
-        # 1. '유입 성격' 드롭다운
         inflow_nature_options = ["전체", "유료광고", "오가닉", "바이럴"]
         sel_nature = st.selectbox("유입 성격", inflow_nature_options)
 
-        # 2. '상세 유입' 드롭다운
         if sel_nature == "전체":
             available_details = sorted(df_channels["유입경로"].unique().tolist())
         else:
@@ -408,7 +420,7 @@ with st.sidebar:
         unsafe_allow_html=True,
     )
 
-    # 관리자 인증 기반 엑셀 파일 업로드 영역
+    # 관리자 인증 업로드 영역
     st.markdown(
         "<p style='font-size:0.78rem; color:#9ca3af; font-weight:700; margin-bottom:8px;'>🔒 데이터 관리자 인증</p>",
         unsafe_allow_html=True,
@@ -432,34 +444,36 @@ with st.sidebar:
             accept_multiple_files=True,
         )
 
-if uploaded_files:
-    if st.button("데이터 파싱 및 영구 동기화", use_container_width=True):
-        conn = sqlite3.connect(DB_FILE)
-        cursor = conn.cursor()
-        
-        for file in uploaded_files:
-            period_tag = extract_period_from_name(file.name)
-            df_r, df_c, df_v, df_vs = parse_hospital_excel(file, period_tag)
+        if uploaded_files:
+            if st.button("데이터 파싱 및 영구 동기화", use_container_width=True):
+                conn = sqlite3.connect(DB_FILE)
+                cursor = conn.cursor()
 
-            # 같은 기간(월) 데이터가 이미 있다면 먼저 지우고 새로 적재 (중복/에러 방지)
-            cursor.execute("DELETE FROM regions WHERE 기간 = ?", (period_tag,))
-            cursor.execute("DELETE FROM channels WHERE 기간 = ?", (period_tag,))
-            cursor.execute("DELETE FROM viral WHERE 기간 = ?", (period_tag,))
-            cursor.execute("DELETE FROM viral_summary WHERE 기간 = ?", (period_tag,))
-            conn.commit()
+                for file in uploaded_files:
+                    period_tag = extract_period_from_name(file.name)
+                    suffix = detect_branch_suffix(file.name)
+                    df_r, df_c, df_v, df_vs = parse_hospital_excel(file, period_tag, suffix)
 
-            if not df_r.empty:
-                df_r.to_sql("regions", conn, if_exists="append", index=False)
-            if not df_c.empty:
-                df_c.to_sql("channels", conn, if_exists="append", index=False)
-            if not df_v.empty:
-                df_v.to_sql("viral", conn, if_exists="append", index=False)
-            if not df_vs.empty:
-                df_vs.to_sql("viral_summary", conn, if_exists="append", index=False)
-                
-        conn.close()
-        st.success("데이터베이스 동기화 완료")
-        st.rerun()
+                    # 동일 기간 및 동일 구분(람스/수술) 기존 데이터가 있을 시 덮어쓰기(삭제 후 추가)
+                    like_pattern = f"%{suffix}" if suffix else "%"
+                    cursor.execute("DELETE FROM regions WHERE 기간 = ? AND 지점명 LIKE ?", (period_tag, like_pattern))
+                    cursor.execute("DELETE FROM channels WHERE 기간 = ? AND 지점명 LIKE ?", (period_tag, like_pattern))
+                    cursor.execute("DELETE FROM viral WHERE 기간 = ? AND 지점명 LIKE ?", (period_tag, like_pattern))
+                    cursor.execute("DELETE FROM viral_summary WHERE 기간 = ? AND 지점명 LIKE ?", (period_tag, like_pattern))
+                    conn.commit()
+
+                    if not df_r.empty:
+                        df_r.to_sql("regions", conn, if_exists="append", index=False)
+                    if not df_c.empty:
+                        df_c.to_sql("channels", conn, if_exists="append", index=False)
+                    if not df_v.empty:
+                        df_v.to_sql("viral", conn, if_exists="append", index=False)
+                    if not df_vs.empty:
+                        df_vs.to_sql("viral_summary", conn, if_exists="append", index=False)
+
+                conn.close()
+                st.success("데이터베이스 동기화 완료 (람스/수술 지점 자동 구분)")
+                st.rerun()
     elif input_pw:
         st.error("비밀번호가 올바르지 않습니다.")
     else:
@@ -481,11 +495,9 @@ trend_df = df_channels.copy()
 if sel_branch != "전지점(통합)":
     trend_df = trend_df[trend_df["지점명"] == sel_branch]
 
-# 유입 성격 선택 필터링
 if sel_nature != "전체":
     trend_df = trend_df[trend_df["유입성격"] == sel_nature]
 
-# 상세 유입 단일 선택 필터링
 if sel_detail != "전체":
     trend_df = trend_df[trend_df["유입경로"] == sel_detail]
 
@@ -530,7 +542,6 @@ viral_rate = (
     else 0.0
 )
 
-# 전지점(통합)은 모객거주지 카드 제외 (3단), 개별 지점은 4단
 if is_all_branches:
     k1, k2, k3 = st.columns(3)
 else:
@@ -599,7 +610,6 @@ if not is_all_branches:
 
 st.markdown("<div style='height: 18px;'></div>", unsafe_allow_html=True)
 
-# 차트 레이아웃 템플릿
 formal_layout = dict(
     paper_bgcolor="#ffffff",
     plot_bgcolor="#ffffff",
