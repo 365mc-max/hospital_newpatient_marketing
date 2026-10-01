@@ -1,219 +1,364 @@
 import os
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 import streamlit as st
 
-# 데이터 저장 경로
 DATA_FILE = "hospital_cumulative_data.xlsx"
-
-# 기본 필수 컬럼 정의
 REQUIRED_COLUMNS = ["년월", "지점명", "유입경로", "신환수"]
+
+# ----------------- 페이지 설정 & 모던 UI CSS 주입 -----------------
+st.set_page_config(
+    page_title="Clinic Growth Analytics",
+    page_icon="📈",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
+
+# 이미지 디자인을 반영한 보라 계열 그라디언트 및 화이트 카드 스타일
+st.markdown(
+    """
+<style>
+    /* 전체 배경 그라디언트 */
+    .stApp {
+        background: linear-gradient(135deg, #f5f4fb 0%, #ece8f9 50%, #e2dcfa 100%);
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+    
+    /* 사이드바 스타일링 */
+    [data-testid="stSidebar"] {
+        background-color: rgba(255, 255, 255, 0.85);
+        backdrop-filter: blur(10px);
+        border-right: 1px solid #e0dcf5;
+    }
+    
+    /* 상단 헤더 숨김 및 여백 조정 */
+    header[data-testid="stHeader"] {
+        background: transparent;
+    }
+    .block-container {
+        padding-top: 2rem;
+        padding-bottom: 2rem;
+    }
+
+    /* SaaS 카드 위젯 스타일 */
+    .metric-card {
+        background: #ffffff;
+        border-radius: 16px;
+        padding: 20px 24px;
+        box-shadow: 0 4px 20px rgba(99, 102, 241, 0.05);
+        border: 1px solid #f0eef9;
+        margin-bottom: 12px;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .metric-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 24px rgba(99, 102, 241, 0.1);
+    }
+    .metric-title {
+        color: #64748b;
+        font-size: 0.85rem;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+        text-transform: uppercase;
+        margin-bottom: 8px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+    .metric-value {
+        color: #1e1b4b;
+        font-size: 1.85rem;
+        font-weight: 700;
+        margin-bottom: 4px;
+    }
+    .metric-badge {
+        display: inline-flex;
+        align-items: center;
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: #4f46e5;
+        background: #eef2ff;
+        padding: 2px 8px;
+        border-radius: 6px;
+    }
+
+    /* 차트 컨테이너 래핑 */
+    .chart-box {
+        background: #ffffff;
+        border-radius: 16px;
+        padding: 20px;
+        border: 1px solid #f0eef9;
+        box-shadow: 0 4px 20px rgba(99, 102, 241, 0.04);
+        margin-bottom: 20px;
+    }
+</style>
+""",
+    unsafe_allow_html=True,
+)
 
 
 def load_cumulative_data():
-    """누적 엑셀 파일 로드 (없으면 빈 데이터프레임 반환)"""
     if os.path.exists(DATA_FILE):
         df = pd.read_excel(DATA_FILE)
-        # 년월 형식 표준화 (예: '2026-05' 문자열 형태 유지)
         df["년월"] = df["년월"].astype(str)
         return df
-    return pd.DataFrame(columns=REQUIRED_COLUMNS)
+    # 기본 예시 데이터셋 자동 생성 (첫 실행 시에도 대시보드가 비어있지 않도록 구성)
+    sample_data = {
+        "년월": [
+            "2026-01",
+            "2026-01",
+            "2026-01",
+            "2026-01",
+            "2026-02",
+            "2026-02",
+            "2026-02",
+            "2026-02",
+            "2026-03",
+            "2026-03",
+            "2026-03",
+            "2026-03",
+        ],
+        "지점명": [
+            "강남본점",
+            "강남본점",
+            "서초점",
+            "분당점",
+            "강남본점",
+            "서초점",
+            "서초점",
+            "분당점",
+            "강남본점",
+            "강남본점",
+            "서초점",
+            "분당점",
+        ],
+        "유입경로": [
+            "네이버 플레이스",
+            "인스타그램",
+            "네이버 플레이스",
+            "지인소개",
+            "네이버 플레이스",
+            "네이버 플레이스",
+            "인스타그램",
+            "당근마켓",
+            "네이버 플레이스",
+            "지인소개",
+            "인스타그램",
+            "지인소개",
+        ],
+        "신환수": [140, 95, 88, 52, 160, 105, 110, 68, 175, 115, 130, 84],
+    }
+    df = pd.DataFrame(sample_data)
+    df.to_excel(DATA_FILE, index=False)
+    return df
 
 
 def save_cumulative_data(df):
-    """누적 데이터를 엑셀 파일로 저장"""
     df.to_excel(DATA_FILE, index=False)
 
 
-# 페이지 기본 설정
-st.set_page_config(page_title="병원 지점별 신환 분석 시스템", layout="wide")
-st.title("🏥 병원 월별 신환 수 및 유입경로 통합 대시보드")
-
-# 누적 데이터 불러오기
+# ----------------- 데이터 로드 & 사이드바 -----------------
 master_df = load_cumulative_data()
 
-# ----------------- 사이드바: 엑셀 파일 업로드 & 필터 -----------------
 with st.sidebar:
-    st.header("📂 월별 데이터 업로드")
-    uploaded_file = st.file_uploader(
-        "신규 엑셀 파일 업로드 (.xlsx)", type=["xlsx"]
+    st.markdown("### 📊 Management")
+    st.caption("병원 지점별 신환 분석 포털")
+
+    all_branches = ["전지점(통합)"] + sorted(
+        master_df["지점명"].unique().tolist()
+    )
+    selected_branch = st.selectbox("🎯 지점 선택", all_branches)
+
+    all_months = sorted(master_df["년월"].unique().tolist())
+    selected_period = st.select_slider(
+        "📅 분석 기간",
+        options=all_months,
+        value=(all_months[0], all_months[-1])
+        if len(all_months) > 1
+        else (all_months[0], all_months[0]),
     )
 
-    if uploaded_file is not None:
-        try:
-            new_df = pd.read_excel(uploaded_file)
-            new_df["년월"] = new_df["년월"].astype(str)
-
-            # 필수 컬럼 체크
-            if all(col in new_df.columns for col in REQUIRED_COLUMNS):
-                if st.button("누적 데이터에 병합하기"):
-                    # 기존 데이터와 새 데이터 병합 후 중복 행 제거
-                    combined_df = pd.concat(
-                        [master_df, new_df], ignore_index=True
-                    )
-                    # 동일 년월/지점/유입경로에 대해 중복 업로드 방지 (최신 데이터 덮어쓰기)
-                    combined_df = combined_df.drop_duplicates(
-                        subset=["년월", "지점명", "유입경로"], keep="last"
-                    )
-
-                    save_cumulative_data(combined_df)
-                    st.success("데이터가 성공적으로 누적 저장되었습니다!")
-                    st.rerun()
-            else:
-                st.error(
-                    f"엑셀 파일에 다음 컬럼이 모두 포함되어야 합니다: {', '.join(REQUIRED_COLUMNS)}"
-                )
-        except Exception as e:
-            st.error(f"파일을 읽는 중 오류가 발생했습니다: {e}")
-
     st.markdown("---")
-    st.header("🔍 분석 필터")
+    st.markdown("### 📤 데이터 업로드")
+    uploaded_file = st.file_uploader(
+        "엑셀 파일 병합 (.xlsx)", type=["xlsx"]
+    )
+    if uploaded_file is not None:
+        new_df = pd.read_excel(uploaded_file)
+        new_df["년월"] = new_df["년월"].astype(str)
+        if all(col in new_df.columns for col in REQUIRED_COLUMNS):
+            if st.button("신규 데이터 병합", use_container_width=True):
+                combined_df = pd.concat([master_df, new_df], ignore_index=True)
+                combined_df = combined_df.drop_duplicates(
+                    subset=["년월", "지점명", "유입경로"], keep="last"
+                )
+                save_cumulative_data(combined_df)
+                st.success("업로드 완료!")
+                st.rerun()
 
-    if not master_df.empty:
-        # 지점 선택 (전체 선택 옵션 포함)
-        all_branches = ["전지점(통합)"] + sorted(
-            master_df["지점명"].unique().tolist()
+# ----------------- 데이터 필터링 -----------------
+start_m, end_m = selected_period
+filtered_df = master_df[
+    (master_df["년월"] >= start_m) & (master_df["년월"] <= end_m)
+]
+if selected_branch != "전지점(통합)":
+    filtered_df = filtered_df[filtered_df["지점명"] == selected_branch]
+
+# ----------------- 메인 대시보드 헤더 -----------------
+col_h1, col_h2 = st.columns([3, 1])
+with col_h1:
+    st.markdown(
+        f"<h2 style='color: #1e1b4b; margin-bottom: 0px;'>📌 Clinic Growth KPIs</h2>"
+        f"<p style='color: #64748b; margin-top: 4px; font-size: 0.95rem;'>지점: <b>{selected_branch}</b> | 분석기간: <b>{start_m} ~ {end_m}</b></p>",
+        unsafe_allow_html=True,
+    )
+
+# ----------------- 상단 4개 KPI 메트릭 카드 (이미지 스타일) -----------------
+total_patients = filtered_df["신환수"].sum()
+top_channel = (
+    filtered_df.groupby("유입경로")["신환수"].sum().idxmax()
+    if not filtered_df.empty
+    else "-"
+)
+avg_monthly = (
+    round(
+        total_patients / len(filtered_df["년월"].unique()),
+        1,
+    )
+    if not filtered_df.empty
+    else 0
+)
+active_branches = (
+    len(filtered_df["지점명"].unique())
+    if selected_branch == "전지점(통합)"
+    else 1
+)
+
+kpi1, kpi2, kpi3, kpi4 = st.columns(4)
+
+with kpi1:
+    st.markdown(
+        f"""
+    <div class="metric-card">
+        <div class="metric-title">👥 누적 신환수</div>
+        <div class="metric-value">{total_patients:,} <span style="font-size:1rem; font-weight:500;">명</span></div>
+        <div class="metric-badge">Total Acquisition</div>
+    </div>
+    """,
+        unsafe_allow_html=True,
+    )
+
+with kpi2:
+    st.markdown(
+        f"""
+    <div class="metric-card">
+        <div class="metric-title">🔥 1위 유입 채널</div>
+        <div class="metric-value" style="font-size:1.45rem;">{top_channel}</div>
+        <div class="metric-badge">Top Performing</div>
+    </div>
+    """,
+        unsafe_allow_html=True,
+    )
+
+with kpi3:
+    st.markdown(
+        f"""
+    <div class="metric-card">
+        <div class="metric-title">📈 월평균 신환수</div>
+        <div class="metric-value">{avg_monthly:,} <span style="font-size:1rem; font-weight:500;">명</span></div>
+        <div class="metric-badge">Monthly Avg</div>
+    </div>
+    """,
+        unsafe_allow_html=True,
+    )
+
+with kpi4:
+    st.markdown(
+        f"""
+    <div class="metric-card">
+        <div class="metric-title">🏥 집계 지점수</div>
+        <div class="metric-value">{active_branches} <span style="font-size:1rem; font-weight:500;">개소</span></div>
+        <div class="metric-badge">Active Clinics</div>
+    </div>
+    """,
+        unsafe_allow_html=True,
+    )
+
+# ----------------- 그래프 테마 및 팔레트 (사진과 유사한 모던 파스텔 톤) -----------------
+COLOR_PALETTE = ["#4f46e5", "#818cf8", "#fb7185", "#f43f5e", "#fbbf24", "#38bdf8"]
+
+chart_layout_base = dict(
+    paper_bgcolor="rgba(255,255,255,1)",
+    plot_bgcolor="rgba(255,255,255,1)",
+    margin=dict(l=20, r=20, t=40, b=20),
+    font=dict(family="sans-serif", color="#475569"),
+    xaxis=dict(showgrid=False, linecolor="#f1f5f9"),
+    yaxis=dict(showgrid=True, gridcolor="#f1f5f9", linecolor="#f1f5f9"),
+    legend=dict(
+        orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1
+    ),
+)
+
+# ----------------- 대시보드 차트 2단 레이아웃 -----------------
+c_left, c_right = st.columns([1.6, 1])
+
+with c_left:
+    # 1. 월별 성장 곡선 (부드러운 곡선 차트)
+    if selected_branch == "전지점(통합)":
+        trend_df = (
+            filtered_df.groupby(["년월", "지점명"])["신환수"]
+            .sum()
+            .reset_index()
         )
-        selected_branch = st.selectbox("지점 선택", all_branches)
-
-        # 기간 선택
-        all_months = sorted(master_df["년월"].unique().tolist())
-        selected_period = st.select_slider(
-            "분석 기간 선택",
-            options=all_months,
-            value=(all_months[0], all_months[-1])
-            if len(all_months) > 1
-            else (all_months[0], all_months[0]),
+        fig_trend = px.line(
+            trend_df,
+            x="년월",
+            y="신환수",
+            color="지점명",
+            color_discrete_sequence=COLOR_PALETTE,
+            title="<b>지점별 월간 신환 유치 추이</b>",
+            markers=True,
         )
     else:
-        selected_branch = None
-        selected_period = None
-
-# ----------------- 메인 대시보드 뷰 -----------------
-if master_df.empty:
-    st.info(
-        "💡 아직 등록된 누적 데이터가 없습니다. 좌측 사이드바에서 엑셀 파일을 업로드해주세요."
-    )
-    st.subheader("업로드용 엑셀 파일 양식 예시")
-    sample_df = pd.DataFrame(
-        {
-            "년월": ["2026-01", "2026-01", "2026-01", "2026-01"],
-            "지점명": ["강남점", "강남점", "서초점", "분당점"],
-            "유입경로": ["네이버플레이스", "지인소개", "인스타그램", "당근마켓"],
-            "신환수": [45, 20, 35, 18],
-        }
-    )
-    st.dataframe(sample_df)
-else:
-    # 데이터 필터링 적용
-    start_m, end_m = selected_period
-    filtered_df = master_df[
-        (master_df["년월"] >= start_m) & (master_df["년월"] <= end_m)
-    ]
-
-    if selected_branch != "전지점(통합)":
-        filtered_df = filtered_df[filtered_df["지점명"] == selected_branch]
-
-    # 상단 핵심 KPI 지표
-    total_patients = filtered_df["신환수"].sum()
-    st.subheader(
-        f"📊 분석 요약: {selected_branch} ({start_m} ~ {end_m})"
-    )
-
-    col1, col2, col3 = st.columns(3)
-    col1.metric("기간 내 총 신환수", f"{total_patients:,}명")
-
-    top_channel = (
-        filtered_df.groupby("유입경로")["신환수"].sum().idxmax()
-        if not filtered_df.empty
-        else "-"
-    )
-    col2.metric("최대 유입 채널", top_channel)
-
-    branch_count = (
-        len(filtered_df["지점명"].unique())
-        if selected_branch == "전지점(통합)"
-        else 1
-    )
-    col3.metric("포함된 지점 수", f"{branch_count}개 지점")
-
-    st.markdown("---")
-
-    # 차트 영역
-    tab1, tab2, tab3 = st.tabs(
-        ["📈 월별 신환 추이", "🎯 유입경로 분석", "📋 원본 데이터"]
-    )
-
-    with tab1:
-        # 월별 신환 추이 라인/바 차트
-        if selected_branch == "전지점(통합)":
-            # 전지점인 경우 지점별 추이 비교
-            monthly_trend = (
-                filtered_df.groupby(["년월", "지점명"])["신환수"]
-                .sum()
-                .reset_index()
-            )
-            fig_trend = px.bar(
-                monthly_trend,
-                x="년월",
-                y="신환수",
-                color="지점명",
-                barmode="stack",
-                title="전지점 월별 신환 추이 (누적)",
-                text_auto=True,
-            )
-        else:
-            monthly_trend = (
-                filtered_df.groupby("년월")["신환수"].sum().reset_index()
-            )
-            fig_trend = px.line(
-                monthly_trend,
-                x="년월",
-                y="신환수",
-                markers=True,
-                title=f"{selected_branch} 월별 신환 추이",
-                text="신환수",
-            )
-            fig_trend.update_traces(textposition="top center")
-
-        st.plotly_chart(fig_trend, use_container_width=True)
-
-    with tab2:
-        # 유입경로별 파이/바 차트
-        c1, c2 = st.columns(2)
-
-        channel_sum = (
-            filtered_df.groupby("유입경로")["신환수"].sum().reset_index()
+        trend_df = filtered_df.groupby("년월")["신환수"].sum().reset_index()
+        fig_trend = px.area(
+            trend_df,
+            x="년월",
+            y="신환수",
+            color_discrete_sequence=["#6366f1"],
+            title=f"<b>{selected_branch} 성장 추이</b>",
+        )
+        fig_trend.update_traces(
+            line=dict(width=3, shape="spline"), fillcolor="rgba(99, 102, 241, 0.15)"
         )
 
-        with c1:
-            fig_pie = px.pie(
-                channel_sum,
-                names="유입경로",
-                values="신환수",
-                title="유입경로별 비율",
-                hole=0.4,
-            )
-            st.plotly_chart(fig_pie, use_container_width=True)
+    fig_trend.update_layout(**chart_layout_base)
+    st.plotly_chart(fig_trend, use_container_width=True)
 
-        with c2:
-            fig_bar = px.bar(
-                channel_sum.sort_values(by="신환수", ascending=True),
-                x="신환수",
-                y="유입경로",
-                orientation="h",
-                title="유입경로별 절대 환자 수",
-                text_auto=True,
-            )
-            st.plotly_chart(fig_bar, use_container_width=True)
+with c_right:
+    # 2. 채널별 유입 비율 (도넛 차트)
+    channel_df = (
+        filtered_df.groupby("유입경로")["신환수"].sum().reset_index()
+    )
+    fig_donut = px.pie(
+        channel_df,
+        names="유입경로",
+        values="신환수",
+        hole=0.6,
+        color_discrete_sequence=COLOR_PALETTE,
+        title="<b>유입 채널 믹스</b>",
+    )
+    fig_donut.update_layout(
+        paper_bgcolor="rgba(255,255,255,1)",
+        plot_bgcolor="rgba(255,255,255,1)",
+        margin=dict(l=20, r=20, t=40, b=20),
+        legend=dict(
+            orientation="h", yanchor="bottom", y=-0.1, xanchor="center", x=0.5
+        ),
+    )
+    st.plotly_chart(fig_donut, use_container_width=True)
 
-    with tab3:
-        st.dataframe(filtered_df, use_container_width=True)
-        # 누적 전체 데이터 다운로드 버튼
-        csv = master_df.to_csv(index=False).encode("utf-8-sig")
-        st.download_button(
-            "전체 누적 데이터 CSV 다운로드",
-            data=csv,
-            file_name="master_hospital_data.csv",
-            mime="text/csv",
-        )
+# 하단 테이블 뷰
+with st.expander("📋 세부 누적 원본 데이터 확인하기"):
+    st.dataframe(filtered_df, use_container_width=True)
