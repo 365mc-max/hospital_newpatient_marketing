@@ -148,19 +148,19 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# ----------------- 2. 획득 성격 및 채널 매핑 함수 -----------------
-def map_funnel_type(channel_name):
+# ----------------- 2. 유입 성격 매핑 함수 -----------------
+def map_inflow_nature(channel_name):
     """
-    유료광고, 오가닉, 바이럴 3가지로 분류
-    - 포털검색어는 획득성격 필터링에서 배제되도록 별도 분류
+    유입 성격(유료광고, 오가닉, 바이럴) 분류
+    - 포털검색어는 유입 성격 필터링에서 배제되도록 별도 분류
     """
     ch = str(channel_name).strip()
 
-    # 포털검색어는 획득성격 분류에서 제외
+    # 포털검색어는 유입 성격 분류에서 제외
     if any(k in ch for k in ["포털검색어", "검색어", "포털 검색어"]):
         return "포털검색어(제외)"
 
-    # 1. 유료광고 매핑
+    # 1. 유료광고
     paid_keywords = [
         "온라인광고", "기타광고", "신문/잡지", "신문", "잡지", 
         "극장광고", "극장", "라디오광고", "라디오", 
@@ -170,12 +170,12 @@ def map_funnel_type(channel_name):
     if any(k in ch for k in paid_keywords):
         return "유료광고"
 
-    # 2. 오가닉 매핑
+    # 2. 오가닉
     organic_keywords = ["지인추천", "지인", "기타추천", "추천", "소개"]
     if any(k in ch for k in organic_keywords):
         return "오가닉"
 
-    # 3. 바이럴 매핑
+    # 3. 바이럴
     viral_keywords = [
         "블로그", "온라인추천", "카페", "기타후기", "후기", 
         "유튜브", "인스타그램", "인스타", "어플", "앱", "틱톡"
@@ -352,8 +352,8 @@ finally:
     conn.close()
 
 if not df_channels.empty:
-    # 획득 성격 파생 컬럼 생성
-    df_channels["획득성격"] = df_channels["유입경로"].apply(map_funnel_type)
+    # 유입 성격 컬럼 생성
+    df_channels["유입성격"] = df_channels["유입경로"].apply(map_inflow_nature)
 
 # ----------------- 6. 사이드바 (분석 필터) -----------------
 with st.sidebar:
@@ -380,32 +380,31 @@ with st.sidebar:
         sel_branch = st.selectbox("지점 선택", branches)
 
         st.markdown("---")
-        # 요청사항 1: 필터명 변경
         st.markdown(
             "<p style='font-size:0.82rem; color:#38bdf8; font-weight:700; margin-bottom:4px;'>🎯 마케팅 전문 필터</p>",
             unsafe_allow_html=True,
         )
 
-        # 요청사항 2 & 포털검색어 배제: 유료광고, 오가닉, 바이럴 3가지 옵션만 제공
-        funnel_options = ["전체", "유료광고", "오가닉", "바이럴"]
-        sel_funnel = st.selectbox("획득 성격", funnel_options)
+        # 1. '유입 성격' 필터 (전체, 유료광고, 오가닉, 바이럴)
+        inflow_nature_options = ["전체", "유료광고", "오가닉", "바이럴"]
+        sel_nature = st.selectbox("유입 성격", inflow_nature_options)
 
-        # 획득 성격에 따른 세부 유입경로 다중선택
-        if sel_funnel == "전체":
-            available_channels = sorted(df_channels["유입경로"].unique().tolist())
+        # 2. '상세 유입' 필터 (선택된 유입 성격에 맞춰 경로 목록 제공)
+        if sel_nature == "전체":
+            available_details = sorted(df_channels["유입경로"].unique().tolist())
         else:
-            available_channels = sorted(
-                df_channels[df_channels["획득성격"] == sel_funnel]["유입경로"].unique().tolist()
+            available_details = sorted(
+                df_channels[df_channels["유입성격"] == sel_nature]["유입경로"].unique().tolist()
             )
 
-        sel_sub_channels = st.multiselect(
-            "세부 유입경로 선택 (다중선택)",
-            options=available_channels,
-            default=available_channels,
-            help="특정 채널만 개별적으로 비교 분석할 수 있습니다."
+        sel_detail = st.multiselect(
+            "상세 유입",
+            options=available_details,
+            default=available_details,
+            help="각 유입 경로별로 체크를 켜고 끄며 세부 유입 분석을 수행할 수 있습니다."
         )
     else:
-        sel_period, sel_branch, sel_funnel, sel_sub_channels = None, None, "전체", []
+        sel_period, sel_branch, sel_nature, sel_detail = None, None, "전체", []
         st.caption("누적된 데이터가 없습니다.")
 
     st.markdown(
@@ -458,12 +457,13 @@ trend_df = df_channels.copy()
 if sel_branch != "전지점(통합)":
     trend_df = trend_df[trend_df["지점명"] == sel_branch]
 
-# 획득성격 선택에 따른 필터링 (포털검색어는 유료광고/오가닉/바이럴 선택 시 자동으로 걸러짐)
-if sel_funnel != "전체":
-    trend_df = trend_df[trend_df["획득성격"] == sel_funnel]
+# 유입 성격 선택 필터링
+if sel_nature != "전체":
+    trend_df = trend_df[trend_df["유입성격"] == sel_nature]
 
-if sel_sub_channels:
-    trend_df = trend_df[trend_df["유입경로"].isin(sel_sub_channels)]
+# 상세 유입 다중선택 필터링
+if sel_detail:
+    trend_df = trend_df[trend_df["유입경로"].isin(sel_detail)]
 
 # 2) 선택 월 기준 필터링
 f_ch = trend_df[trend_df["기간"] == sel_period]
@@ -479,13 +479,14 @@ if not is_all_branches:
     f_vsum = f_vsum[f_vsum["지점명"] == sel_branch]
 
 # 대시보드 상단 타이틀
+detail_info = f"{len(sel_detail)}개 선택됨" if len(sel_detail) > 3 else (", ".join(sel_detail) if sel_detail else "선택 없음")
 st.markdown(
     f'<div style="margin-bottom: 24px;">'
     f'<div style="display: flex; align-items: center;">'
     f'<span style="font-weight: 700; font-size: 2.1rem; color: #0f172a; letter-spacing: -0.03em;">365MC 신환 유입 분석 대시보드 — {sel_branch}</span>'
     f'</div>'
     f'<div style="color: #64748b; font-size: 0.92rem; font-weight: 500; margin-top: 6px;">'
-    f'분석 기준월: <b>{sel_period}</b> &nbsp;|&nbsp; 획득 성격: <b>{sel_funnel}</b>'
+    f'분석 기준월: <b>{sel_period}</b> &nbsp;|&nbsp; 유입 성격: <b>{sel_nature}</b> &nbsp;|&nbsp; 상세 유입: <b>{detail_info}</b>'
     f'</div>'
     f'</div>',
     unsafe_allow_html=True,
@@ -515,7 +516,7 @@ else:
 with k1:
     st.markdown(
         f'<div class="metric-card">'
-        f'<div class="metric-title">선택 채널 총 유입수</div>'
+        f'<div class="metric-title">선택 상세 유입 합계</div>'
         f'<div class="metric-value">{total_inflows:,} <span style="font-size:1.05rem; font-weight:500; color:#64748b;">건</span></div>'
         f'<div class="metric-badge">Filtered Inflows</div>'
         f'</div>',
@@ -525,9 +526,9 @@ with k1:
 with k2:
     st.markdown(
         f'<div class="metric-card">'
-        f'<div class="metric-title">선택 채널 1위 경로</div>'
+        f'<div class="metric-title">선택 내 1위 경로</div>'
         f'<div class="metric-value" style="font-size:1.35rem; line-height:1.2; padding-top:4px;">{top_channel}</div>'
-        f'<div class="metric-badge">Top Performing Channel</div>'
+        f'<div class="metric-badge">Top Inflow Channel</div>'
         f'</div>',
         unsafe_allow_html=True,
     )
@@ -604,7 +605,7 @@ def render_channel_tab():
             y="유입경로",
             orientation="h",
             text_auto=True,
-            title="<b>선택 채널 유입 순위 (Top 12)</b>",
+            title="<b>선택 상세 유입 순위 (Top 12)</b>",
             color_discrete_sequence=["#1e293b"],
         )
         fig_bar.update_layout(**formal_layout)
@@ -617,7 +618,7 @@ def render_channel_tab():
                 names="유입경로",
                 values="유입수",
                 hole=0.6,
-                title="<b>채널별 점유 비중 (%)</b>",
+                title="<b>상세 유입별 점유 비중 (%)</b>",
                 color_discrete_sequence=FORMAL_COLORS,
             )
             fig_pie.update_layout(paper_bgcolor="#ffffff", margin=dict(l=10, r=10, t=45, b=10))
@@ -625,7 +626,7 @@ def render_channel_tab():
         else:
             st.info("데이터가 없습니다.")
 
-    st.markdown("#### 세부 유입경로 전체 내역")
+    st.markdown("#### 상세 유입별 전체 내역")
     st.dataframe(
         ch_sum.sort_values(by="유입수", ascending=False).reset_index(drop=True),
         use_container_width=True,
@@ -637,7 +638,7 @@ def render_trend_tab():
         st.info("선택된 조건에 부합하는 데이터가 없습니다.")
         return
 
-    # 월별/채널별 피벗 집계
+    # 월별/상세 유입별 피벗 집계
     trend_pivot = (
         trend_df.groupby(["기간", "유입경로"])["유입수"]
         .sum()
@@ -650,7 +651,7 @@ def render_trend_tab():
         y="유입수",
         color="유입경로",
         markers=True,
-        title="<b>선택 유입경로의 월별 유입량 추이</b>",
+        title="<b>상세 유입 경로의 월별 추이</b>",
     )
     fig_trend.update_layout(**formal_layout)
     st.plotly_chart(fig_trend, use_container_width=True)
