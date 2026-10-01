@@ -432,24 +432,34 @@ with st.sidebar:
             accept_multiple_files=True,
         )
 
-        if uploaded_files:
-            if st.button("데이터 파싱 및 영구 동기화", use_container_width=True):
-                conn = sqlite3.connect(DB_FILE)
-                for file in uploaded_files:
-                    period_tag = extract_period_from_name(file.name)
-                    df_r, df_c, df_v, df_vs = parse_hospital_excel(file, period_tag)
+if uploaded_files:
+    if st.button("데이터 파싱 및 영구 동기화", use_container_width=True):
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+        
+        for file in uploaded_files:
+            period_tag = extract_period_from_name(file.name)
+            df_r, df_c, df_v, df_vs = parse_hospital_excel(file, period_tag)
 
-                    if not df_r.empty:
-                        df_r.to_sql("regions", conn, if_exists="append", index=False)
-                    if not df_c.empty:
-                        df_c.to_sql("channels", conn, if_exists="append", index=False)
-                    if not df_v.empty:
-                        df_v.to_sql("viral", conn, if_exists="append", index=False)
-                    if not df_vs.empty:
-                        df_vs.to_sql("viral_summary", conn, if_exists="append", index=False)
-                conn.close()
-                st.success("데이터베이스 동기화 완료")
-                st.rerun()
+            # 같은 기간(월) 데이터가 이미 있다면 먼저 지우고 새로 적재 (중복/에러 방지)
+            cursor.execute("DELETE FROM regions WHERE 기간 = ?", (period_tag,))
+            cursor.execute("DELETE FROM channels WHERE 기간 = ?", (period_tag,))
+            cursor.execute("DELETE FROM viral WHERE 기간 = ?", (period_tag,))
+            cursor.execute("DELETE FROM viral_summary WHERE 기간 = ?", (period_tag,))
+            conn.commit()
+
+            if not df_r.empty:
+                df_r.to_sql("regions", conn, if_exists="append", index=False)
+            if not df_c.empty:
+                df_c.to_sql("channels", conn, if_exists="append", index=False)
+            if not df_v.empty:
+                df_v.to_sql("viral", conn, if_exists="append", index=False)
+            if not df_vs.empty:
+                df_vs.to_sql("viral_summary", conn, if_exists="append", index=False)
+                
+        conn.close()
+        st.success("데이터베이스 동기화 완료")
+        st.rerun()
     elif input_pw:
         st.error("비밀번호가 올바르지 않습니다.")
     else:
