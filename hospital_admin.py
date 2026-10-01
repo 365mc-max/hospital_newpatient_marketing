@@ -9,7 +9,7 @@ import streamlit as st
 
 DB_FILE = "hospital_analytics.db"
 
-# ----------------- 1. 페이지 설정 & 프리텐다드 고딕 모던 테마 -----------------
+# ----------------- 1. 페이지 설정 & 폰트/스타일 (아이콘 충돌 방지) -----------------
 st.set_page_config(
     page_title="365MC NEW Patient Dashboard",
     page_icon="🏥",
@@ -29,7 +29,7 @@ def get_image_base64(filepath):
     return None
 
 
-# 지방이 캐릭터 이미지 탐색 (프로젝트 폴더 내 위치)
+# 지방이 캐릭터 이미지 파일 자동 탐색
 jibang_files = [
     "3D jibang (23).png",
     "3D jibang (18).jpg",
@@ -42,31 +42,26 @@ for f in jibang_files:
         jibang_src = get_image_base64(f)
         break
 
-# 기본 Pretendard 고딕 웹폰트 임베딩
+# 아이콘 폰트를 손상시키지 않고 본문만 Pretendard 고딕 적용
 st.markdown(
     """
 <style>
     @import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css");
 
-    /* 모든 텍스트 요소를 프리텐다드 고딕으로 일괄 통일 */
-    * {
-        font-family: "Pretendard", -apple-system, BlinkMacSystemFont, system-ui, Roboto, "Helvetica Neue", "Segoe UI", "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif !important;
+    /* 기본 레이아웃 폰트 지정 (아이콘 태그 제외) */
+    html, body, .stApp, p, span, h1, h2, h3, h4, h5, h6, button, input, select, label {
+        font-family: "Pretendard", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
         letter-spacing: -0.015em;
+    }
+
+    /* 스트림릿 내장 아이콘 폰트 복구 */
+    [data-testid="stIcon"], [class*="material-symbols"], [class*="material-icons"] {
+        font-family: inherit !important;
     }
 
     .stApp {
         background-color: #fbfbfa;
         color: #1a1a1a;
-    }
-
-    /* 상단 메인 헤더 타이틀 (모던 고딕) */
-    .formal-title {
-        font-weight: 700;
-        font-size: 2.1rem;
-        color: #0f172a;
-        letter-spacing: -0.03em;
-        margin-bottom: 4px;
-        line-height: 1.25;
     }
 
     /* 사이드바 다크 엔터프라이즈 스타일 */
@@ -75,7 +70,7 @@ st.markdown(
         border-right: 1px solid #242424;
     }
     [data-testid="stSidebar"] * {
-        color: #d1d5db !important;
+        color: #d1d5db;
     }
     [data-testid="stSidebar"] hr {
         border-color: #262626 !important;
@@ -373,33 +368,21 @@ try:
 finally:
     conn.close()
 
-# ----------------- 5. 사이드바 (지방이 캐릭터 배치) -----------------
+# ----------------- 5. 사이드바 (들여쓰기 제거로 태그 노출 방지) -----------------
 with st.sidebar:
-    # 지방이 이미지 렌더링 (사이드바 상단)
-    jibang_html = ""
+    # 지방이 캐릭터 렌더링
     if jibang_src:
-        jibang_html = f"""
-        <div style="text-align: center; margin-bottom: 12px;">
-            <img src="{jibang_src}" style="width: 76px; height: 76px; border-radius: 50%; object-fit: cover; border: 2px solid #333333; background: #ffffff;">
-        </div>
-        """
+        avatar_tag = f'<img src="{jibang_src}" style="width: 72px; height: 72px; border-radius: 50%; object-fit: cover; border: 2px solid #333333; background: #ffffff;">'
     else:
-        jibang_html = """
-        <div style="text-align: center; margin-bottom: 12px;">
-            <div style="display:inline-flex; align-items:center; justify-content:center; width:64px; height:64px; border-radius:50%; background:#27272a; border:1px solid #3f3f46; font-size:1.8rem;">
-            🐥
-            </div>
-        </div>
-        """
+        avatar_tag = '<div style="display:inline-flex; align-items:center; justify-content:center; width:64px; height:64px; border-radius:50%; background:#27272a; border:1px solid #3f3f46; font-size:1.8rem;">🐥</div>'
 
+    # 한 줄로 처리하여 마크다운 파서의 코드블록 오작동 원천 차단
     st.markdown(
-        f"""
-        <div style="padding: 10px 0 16px 0;">
-            {jibang_html}
-            <div style="text-align: center; font-size:1.25rem; font-weight:700; color:#ffffff; letter-spacing:-0.02em;">365MC Intelligence</div>
-            <div style="text-align: center; font-size:0.75rem; color:#a1a1aa; margin-top:2px;">신환 유입 & 상권 분석 시스템</div>
-        </div>
-        """,
+        f'<div style="text-align: center; padding: 10px 0 16px 0;">'
+        f'{avatar_tag}'
+        f'<div style="font-size:1.25rem; font-weight:700; color:#ffffff; margin-top:8px;">365MC Intelligence</div>'
+        f'<div style="font-size:0.75rem; color:#a1a1aa; margin-top:2px;">신환 유입 & 상권 분석 시스템</div>'
+        f'</div>',
         unsafe_allow_html=True,
     )
 
@@ -465,15 +448,13 @@ with st.sidebar:
             st.success("데이터베이스 동기화 완료")
             st.rerun()
 
-# ----------------- 6. 메인 화면 레이아웃 -----------------
+# ----------------- 6. 메인 화면 레이아웃 (들여쓰기 제거 완료) -----------------
 if df_channels.empty:
     st.markdown(
-        """
-        <div style='padding: 60px 0; text-align: center;'>
-            <h2 class='formal-title'>365MC NEW Patient Command Center</h2>
-            <p style='color: #71717a;'>좌측 하단의 [신환조사 엑셀파일 업로드]에서 조사 파일을 업로드해 주십시오.</p>
-        </div>
-        """,
+        '<div style="padding: 60px 0; text-align: center;">'
+        '<h2 style="font-weight:700; font-size:2rem; color:#0f172a;">365MC NEW Patient Command Center</h2>'
+        '<p style="color: #71717a;">좌측 하단의 [신환조사 엑셀파일 업로드]에서 조사 파일을 업로드해 주십시오.</p>'
+        '</div>',
         unsafe_allow_html=True,
     )
     st.stop()
@@ -490,25 +471,19 @@ if sel_branch != "전지점(통합)":
     f_vir = f_vir[f_vir["지점명"] == sel_branch]
     f_vsum = f_vsum[f_vsum["지점명"] == sel_branch]
 
-# 상단 헤더 (지방이 캐릭터 포인트 배지)
-header_jibang_badge = ""
-if jibang_src:
-    header_jibang_badge = f'<img src="{jibang_src}" style="width: 46px; height: 46px; border-radius: 50%; object-fit: cover; border: 1.5px solid #e2e8f0; margin-left: 12px;">'
+# 상단 헤더 HTML 깨짐 방지: 한 줄로 결합
+header_jibang = f'<img src="{jibang_src}" style="width: 44px; height: 44px; border-radius: 50%; object-fit: cover; margin-left: 10px; vertical-align: middle;">' if jibang_src else ''
 
 st.markdown(
-    f"""
-    <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 24px;">
-        <div>
-            <div style="display: flex; align-items: center;">
-                <span class="formal-title">365MC 환자 관리 센터 — {sel_branch}</span>
-                {header_jibang_badge}
-            </div>
-            <div style="color: #64748b; font-size: 0.92rem; font-weight: 500; margin-top: 4px;">
-                분석 기준월: <b>{sel_period}</b> &nbsp;|&nbsp; 데이터 검증 완료 (Verified)
-            </div>
-        </div>
-    </div>
-    """,
+    f'<div style="margin-bottom: 24px;">'
+    f'<div style="display: flex; align-items: center;">'
+    f'<span style="font-weight: 700; font-size: 2.1rem; color: #0f172a; letter-spacing: -0.03em;">365MC 환자 관리 센터 — {sel_branch}</span>'
+    f'{header_jibang}'
+    f'</div>'
+    f'<div style="color: #64748b; font-size: 0.92rem; font-weight: 500; margin-top: 4px;">'
+    f'분석 기준월: <b>{sel_period}</b> &nbsp;|&nbsp; 데이터 검증 완료 (Verified)'
+    f'</div>'
+    f'</div>',
     unsafe_allow_html=True,
 )
 
@@ -591,7 +566,7 @@ with k4:
 
 st.markdown("<div style='height: 18px;'></div>", unsafe_allow_html=True)
 
-# ----------------- 8. 차트 테마 설정 (Pretendard 고딕 폰트 적용) -----------------
+# ----------------- 8. 차트 테마 설정 -----------------
 FORMAL_COLORS = ["#18181b", "#3f3f46", "#71717a", "#a1a1aa", "#d4d4d8", "#e4e4e7"]
 
 formal_layout = dict(
@@ -625,7 +600,7 @@ formal_layout = dict(
     ),
 )
 
-# ----------------- 9. 탭별 분석 뷰 (깔끔한 고딕 레이블) -----------------
+# ----------------- 9. 탭별 분석 뷰 -----------------
 tab1, tab2, tab3 = st.tabs(
     ["유입 경로 분석 (Channels)", "거주지 상권 분석 (Demographics)", "지점 벤치마크 (Benchmark)"]
 )
