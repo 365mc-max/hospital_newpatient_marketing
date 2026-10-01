@@ -50,7 +50,6 @@ st.markdown(
         border-color: #262626 !important;
     }
     [data-testid="stSidebar"] .stSelectbox label, 
-    [data-testid="stSidebar"] .stMultiSelect label,
     [data-testid="stSidebar"] .stFileUploader label {
         color: #9ca3af !important;
         font-size: 0.8rem;
@@ -352,7 +351,6 @@ finally:
     conn.close()
 
 if not df_channels.empty:
-    # 유입 성격 컬럼 생성
     df_channels["유입성격"] = df_channels["유입경로"].apply(map_inflow_nature)
 
 # ----------------- 6. 사이드바 (분석 필터) -----------------
@@ -385,11 +383,11 @@ with st.sidebar:
             unsafe_allow_html=True,
         )
 
-        # 1. '유입 성격' 필터 (전체, 유료광고, 오가닉, 바이럴)
+        # 1. '유입 성격' 드롭다운
         inflow_nature_options = ["전체", "유료광고", "오가닉", "바이럴"]
         sel_nature = st.selectbox("유입 성격", inflow_nature_options)
 
-        # 2. '상세 유입' 필터 (선택된 유입 성격에 맞춰 경로 목록 제공)
+        # 2. '상세 유입' 드롭다운 (selectbox 형태로 변경)
         if sel_nature == "전체":
             available_details = sorted(df_channels["유입경로"].unique().tolist())
         else:
@@ -397,14 +395,10 @@ with st.sidebar:
                 df_channels[df_channels["유입성격"] == sel_nature]["유입경로"].unique().tolist()
             )
 
-        sel_detail = st.multiselect(
-            "상세 유입",
-            options=available_details,
-            default=available_details,
-            help="각 유입 경로별로 체크를 켜고 끄며 세부 유입 분석을 수행할 수 있습니다."
-        )
+        detail_options = ["전체"] + available_details
+        sel_detail = st.selectbox("상세 유입", detail_options)
     else:
-        sel_period, sel_branch, sel_nature, sel_detail = None, None, "전체", []
+        sel_period, sel_branch, sel_nature, sel_detail = None, None, "전체", "전체"
         st.caption("누적된 데이터가 없습니다.")
 
     st.markdown(
@@ -461,9 +455,9 @@ if sel_branch != "전지점(통합)":
 if sel_nature != "전체":
     trend_df = trend_df[trend_df["유입성격"] == sel_nature]
 
-# 상세 유입 다중선택 필터링
-if sel_detail:
-    trend_df = trend_df[trend_df["유입경로"].isin(sel_detail)]
+# 상세 유입 단일 선택 필터링
+if sel_detail != "전체":
+    trend_df = trend_df[trend_df["유입경로"] == sel_detail]
 
 # 2) 선택 월 기준 필터링
 f_ch = trend_df[trend_df["기간"] == sel_period]
@@ -479,14 +473,13 @@ if not is_all_branches:
     f_vsum = f_vsum[f_vsum["지점명"] == sel_branch]
 
 # 대시보드 상단 타이틀
-detail_info = f"{len(sel_detail)}개 선택됨" if len(sel_detail) > 3 else (", ".join(sel_detail) if sel_detail else "선택 없음")
 st.markdown(
     f'<div style="margin-bottom: 24px;">'
     f'<div style="display: flex; align-items: center;">'
     f'<span style="font-weight: 700; font-size: 2.1rem; color: #0f172a; letter-spacing: -0.03em;">365MC 신환 유입 분석 대시보드 — {sel_branch}</span>'
     f'</div>'
     f'<div style="color: #64748b; font-size: 0.92rem; font-weight: 500; margin-top: 6px;">'
-    f'분석 기준월: <b>{sel_period}</b> &nbsp;|&nbsp; 유입 성격: <b>{sel_nature}</b> &nbsp;|&nbsp; 상세 유입: <b>{detail_info}</b>'
+    f'분석 기준월: <b>{sel_period}</b> &nbsp;|&nbsp; 유입 성격: <b>{sel_nature}</b> &nbsp;|&nbsp; 상세 유입: <b>{sel_detail}</b>'
     f'</div>'
     f'</div>',
     unsafe_allow_html=True,
@@ -516,7 +509,7 @@ else:
 with k1:
     st.markdown(
         f'<div class="metric-card">'
-        f'<div class="metric-title">선택 상세 유입 합계</div>'
+        f'<div class="metric-title">선택 조건 총 유입수</div>'
         f'<div class="metric-value">{total_inflows:,} <span style="font-size:1.05rem; font-weight:500; color:#64748b;">건</span></div>'
         f'<div class="metric-badge">Filtered Inflows</div>'
         f'</div>',
@@ -605,7 +598,7 @@ def render_channel_tab():
             y="유입경로",
             orientation="h",
             text_auto=True,
-            title="<b>선택 상세 유입 순위 (Top 12)</b>",
+            title="<b>선택 유입 경로 순위</b>",
             color_discrete_sequence=["#1e293b"],
         )
         fig_bar.update_layout(**formal_layout)
@@ -618,7 +611,7 @@ def render_channel_tab():
                 names="유입경로",
                 values="유입수",
                 hole=0.6,
-                title="<b>상세 유입별 점유 비중 (%)</b>",
+                title="<b>점유 비중 (%)</b>",
                 color_discrete_sequence=FORMAL_COLORS,
             )
             fig_pie.update_layout(paper_bgcolor="#ffffff", margin=dict(l=10, r=10, t=45, b=10))
@@ -626,7 +619,7 @@ def render_channel_tab():
         else:
             st.info("데이터가 없습니다.")
 
-    st.markdown("#### 상세 유입별 전체 내역")
+    st.markdown("#### 유입 내역 데이터")
     st.dataframe(
         ch_sum.sort_values(by="유입수", ascending=False).reset_index(drop=True),
         use_container_width=True,
@@ -638,7 +631,6 @@ def render_trend_tab():
         st.info("선택된 조건에 부합하는 데이터가 없습니다.")
         return
 
-    # 월별/상세 유입별 피벗 집계
     trend_pivot = (
         trend_df.groupby(["기간", "유입경로"])["유입수"]
         .sum()
@@ -651,7 +643,7 @@ def render_trend_tab():
         y="유입수",
         color="유입경로",
         markers=True,
-        title="<b>상세 유입 경로의 월별 추이</b>",
+        title="<b>선택 경로의 월별 추이</b>",
     )
     fig_trend.update_layout(**formal_layout)
     st.plotly_chart(fig_trend, use_container_width=True)
