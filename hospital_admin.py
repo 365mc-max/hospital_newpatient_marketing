@@ -7,6 +7,7 @@ import plotly.graph_objects as go
 import streamlit as st
 
 DB_FILE = "hospital_analytics.db"
+ADMIN_PASSWORD = "365mc1234"  # 관리자 비밀번호 설정
 
 # ----------------- 1. 페이지 설정 및 스타일 -----------------
 st.set_page_config(
@@ -21,7 +22,7 @@ st.markdown(
 <style>
     @import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css");
 
-    .stApp, .stMarkdown, .stSelectbox, .stMultiSelect, .stFileUploader, .stMetric, [data-testid="stSidebarContent"], p, h1, h2, h3, h4, h5, h6 {
+    .stApp, .stMarkdown, .stSelectbox, .stMultiSelect, .stFileUploader, .stTextInput, .stMetric, [data-testid="stSidebarContent"], p, h1, h2, h3, h4, h5, h6 {
         font-family: "Pretendard", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
         letter-spacing: -0.015em;
     }
@@ -50,6 +51,7 @@ st.markdown(
         border-color: #262626 !important;
     }
     [data-testid="stSidebar"] .stSelectbox label, 
+    [data-testid="stSidebar"] .stTextInput label,
     [data-testid="stSidebar"] .stFileUploader label {
         color: #9ca3af !important;
         font-size: 0.8rem;
@@ -57,7 +59,8 @@ st.markdown(
         letter-spacing: 0.03em;
         text-transform: uppercase;
     }
-    [data-testid="stSidebar"] div[data-baseweb="select"] > div {
+    [data-testid="stSidebar"] div[data-baseweb="select"] > div,
+    [data-testid="stSidebar"] div[data-baseweb="input"] > div {
         background-color: #1a1a1a !important;
         border: 1px solid #333333 !important;
         color: #f3f4f6 !important;
@@ -155,7 +158,6 @@ def map_inflow_nature(channel_name):
     """
     ch = str(channel_name).strip()
 
-    # 포털검색어는 유입 성격 분류에서 제외
     if any(k in ch for k in ["포털검색어", "검색어", "포털 검색어"]):
         return "포털검색어(제외)"
 
@@ -353,7 +355,7 @@ finally:
 if not df_channels.empty:
     df_channels["유입성격"] = df_channels["유입경로"].apply(map_inflow_nature)
 
-# ----------------- 6. 사이드바 (분석 필터) -----------------
+# ----------------- 6. 사이드바 (분석 필터 및 비밀번호 인증 업로드) -----------------
 with st.sidebar:
     st.markdown(
         f'<div style="text-align: center; padding: 20px 0 16px 0;">'
@@ -387,7 +389,7 @@ with st.sidebar:
         inflow_nature_options = ["전체", "유료광고", "오가닉", "바이럴"]
         sel_nature = st.selectbox("유입 성격", inflow_nature_options)
 
-        # 2. '상세 유입' 드롭다운 (selectbox 형태로 변경)
+        # 2. '상세 유입' 드롭다운
         if sel_nature == "전체":
             available_details = sorted(df_channels["유입경로"].unique().tolist())
         else:
@@ -406,41 +408,59 @@ with st.sidebar:
         unsafe_allow_html=True,
     )
 
+    # 관리자 인증 기반 엑셀 파일 업로드 영역
     st.markdown(
-        "<p style='font-size:0.78rem; color:#9ca3af; font-weight:700; margin-bottom:8px;'>📤 신환조사 엑셀파일 업로드</p>",
+        "<p style='font-size:0.78rem; color:#9ca3af; font-weight:700; margin-bottom:8px;'>🔒 데이터 관리자 인증</p>",
         unsafe_allow_html=True,
     )
-    uploaded_files = st.file_uploader(
-        "엑셀 파일 (.xlsx)",
-        type=["xlsx"],
-        accept_multiple_files=True,
+    input_pw = st.text_input(
+        "관리자 비밀번호",
+        type="password",
+        placeholder="비밀번호 입력",
+        help="데이터 업로드를 위해 관리자 비밀번호를 입력해 주십시오."
     )
 
-    if uploaded_files:
-        if st.button("데이터 파싱 및 영구 동기화", use_container_width=True):
-            conn = sqlite3.connect(DB_FILE)
-            for file in uploaded_files:
-                period_tag = extract_period_from_name(file.name)
-                df_r, df_c, df_v, df_vs = parse_hospital_excel(file, period_tag)
+    if input_pw == ADMIN_PASSWORD:
+        st.success("관리자 인증 완료")
+        st.markdown(
+            "<p style='font-size:0.78rem; color:#9ca3af; font-weight:700; margin: 12px 0 8px 0;'>📤 신환조사 엑셀파일 업로드</p>",
+            unsafe_allow_html=True,
+        )
+        uploaded_files = st.file_uploader(
+            "엑셀 파일 (.xlsx)",
+            type=["xlsx"],
+            accept_multiple_files=True,
+        )
 
-                if not df_r.empty:
-                    df_r.to_sql("regions", conn, if_exists="append", index=False)
-                if not df_c.empty:
-                    df_c.to_sql("channels", conn, if_exists="append", index=False)
-                if not df_v.empty:
-                    df_v.to_sql("viral", conn, if_exists="append", index=False)
-                if not df_vs.empty:
-                    df_vs.to_sql("viral_summary", conn, if_exists="append", index=False)
-            conn.close()
-            st.success("데이터베이스 동기화 완료")
-            st.rerun()
+        if uploaded_files:
+            if st.button("데이터 파싱 및 영구 동기화", use_container_width=True):
+                conn = sqlite3.connect(DB_FILE)
+                for file in uploaded_files:
+                    period_tag = extract_period_from_name(file.name)
+                    df_r, df_c, df_v, df_vs = parse_hospital_excel(file, period_tag)
+
+                    if not df_r.empty:
+                        df_r.to_sql("regions", conn, if_exists="append", index=False)
+                    if not df_c.empty:
+                        df_c.to_sql("channels", conn, if_exists="append", index=False)
+                    if not df_v.empty:
+                        df_v.to_sql("viral", conn, if_exists="append", index=False)
+                    if not df_vs.empty:
+                        df_vs.to_sql("viral_summary", conn, if_exists="append", index=False)
+                conn.close()
+                st.success("데이터베이스 동기화 완료")
+                st.rerun()
+    elif input_pw:
+        st.error("비밀번호가 올바르지 않습니다.")
+    else:
+        st.caption("비밀번호를 입력하면 업로드 창이 활성화됩니다.")
 
 # ----------------- 7. 메인 화면 레이아웃 및 필터링 -----------------
 if df_channels.empty:
     st.markdown(
         '<div style="padding: 60px 0; text-align: center;">'
         '<h2 style="font-weight:700; font-size:2rem; color:#0f172a;">365MC 신환 유입 분석 대시보드</h2>'
-        '<p style="color: #71717a;">좌측 하단의 [신환조사 엑셀파일 업로드]에서 조사 파일을 업로드해 주십시오.</p>'
+        '<p style="color: #71717a;">좌측 사이드바에서 관리자 비밀번호 입력 후 조사 엑셀 파일을 업로드해 주십시오.</p>'
         '</div>',
         unsafe_allow_html=True,
     )
