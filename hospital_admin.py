@@ -8,10 +8,10 @@ import streamlit as st
 
 DB_FILE = "hospital_analytics.db"
 
-# ----------------- 1. 페이지 설정 & 모던 UI 스타일 -----------------
+# ----------------- 1. 페이지 설정 & Harvey 스타일 포멀 테마 -----------------
 st.set_page_config(
     page_title="365MC NEW Patient Dashboard",
-    page_icon="💉",
+    page_icon="⚖️",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -19,80 +19,137 @@ st.set_page_config(
 st.markdown(
     """
 <style>
+    /* 구글 웹폰트: 포멀한 Serif 및 Sans-Serif 로드 */
+    @import url('https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+
+    /* 메인 캔버스: 세련된 오프화이트/웜그레이 톤 */
     .stApp {
-        background: linear-gradient(135deg, #f6f5fc 0%, #ece8f9 50%, #e3ddfa 100%);
-        font-family: -apple-system, BlinkMacSystemFont, "Pretendard", "Segoe UI", sans-serif;
+        background-color: #fbfbfa;
+        font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+        color: #1a1a1a;
     }
+
+    /* 포멀 세리프 헤더 폰트 */
+    .formal-title {
+        font-family: 'Newsreader', Georgia, serif;
+        font-weight: 500;
+        font-size: 2.35rem;
+        color: #121212;
+        letter-spacing: -0.02em;
+        margin-bottom: 2px;
+    }
+
+    /* 사이드바: 딥 차콜/매트 블랙 엔터프라이즈 스타일 */
     [data-testid="stSidebar"] {
-        background-color: rgba(255, 255, 255, 0.94);
-        backdrop-filter: blur(12px);
-        border-right: 1px solid #e2dcfa;
+        background-color: #111111 !important;
+        border-right: 1px solid #242424;
     }
+    [data-testid="stSidebar"] * {
+        color: #d1d5db !important;
+    }
+    [data-testid="stSidebar"] hr {
+        border-color: #262626 !important;
+    }
+    [data-testid="stSidebar"] .stSelectbox label, 
+    [data-testid="stSidebar"] .stFileUploader label {
+        color: #9ca3af !important;
+        font-size: 0.82rem;
+        letter-spacing: 0.02em;
+        text-transform: uppercase;
+    }
+    [data-testid="stSidebar"] div[data-baseweb="select"] > div {
+        background-color: #1a1a1a !important;
+        border: 1px solid #333333 !important;
+        color: #f3f4f6 !important;
+        border-radius: 8px;
+    }
+
+    /* 포멀 미니멀 카드 UI */
     .metric-card {
         background: #ffffff;
-        border-radius: 16px;
-        padding: 18px 22px;
-        box-shadow: 0 4px 20px rgba(99, 102, 241, 0.06);
-        border: 1px solid #f0eef9;
-        margin-bottom: 12px;
-        min-height: 140px;
+        border-radius: 10px;
+        padding: 20px 22px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03), 0 1px 2px rgba(0, 0, 0, 0.02);
+        border: 1px solid #e7e5e4;
+        min-height: 145px;
         display: flex;
         flex-direction: column;
         justify-content: space-between;
     }
     .metric-title {
-        color: #64748b;
-        font-size: 0.82rem;
+        color: #71717a;
+        font-size: 0.78rem;
         font-weight: 600;
         text-transform: uppercase;
-        margin-bottom: 4px;
+        letter-spacing: 0.04em;
     }
     .metric-value {
-        color: #1e1b4b;
-        font-size: 1.75rem;
-        font-weight: 700;
-        line-height: 1.3;
+        font-family: 'Newsreader', Georgia, serif;
+        color: #18181b;
+        font-size: 2.1rem;
+        font-weight: 500;
+        line-height: 1.15;
     }
     .metric-badge {
         display: inline-flex;
         font-size: 0.72rem;
-        font-weight: 600;
-        color: #4f46e5;
-        background: #eef2ff;
-        padding: 2px 8px;
-        border-radius: 6px;
+        font-weight: 500;
+        color: #52525b;
+        background: #f4f4f5;
+        padding: 3px 8px;
+        border-radius: 4px;
         width: fit-content;
-        margin-top: 6px;
+        border: 1px solid #e4e4e7;
     }
-    .top3-item {
-        font-size: 0.88rem;
-        color: #1e1b4b;
-        font-weight: 600;
-        margin: 1px 0;
+
+    /* TOP 3 리스트 스타일 */
+    .top3-row {
         display: flex;
         justify-content: space-between;
+        align-items: center;
+        font-size: 0.85rem;
+        padding: 2px 0;
+        border-bottom: 1px dashed #f4f4f5;
+    }
+    .top3-row:last-child {
+        border-bottom: none;
     }
     .top3-rank {
-        color: #6366f1;
-        font-weight: 700;
-        margin-right: 4px;
+        color: #71717a;
+        font-weight: 600;
+        margin-right: 6px;
+        font-size: 0.78rem;
+    }
+    .top3-name {
+        font-weight: 500;
+        color: #27272a;
+    }
+    .top3-count {
+        font-weight: 600;
+        color: #09090b;
+    }
+
+    /* 탭 헤더 스타일링 */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 24px;
+        border-bottom: 1px solid #e5e5e5;
+    }
+    .stTabs [data-baseweb="tab"] {
+        font-family: 'Plus Jakarta Sans', sans-serif;
+        font-size: 0.9rem;
+        font-weight: 500;
+        color: #71717a;
+        padding: 10px 4px;
+    }
+    .stTabs [aria-selected="true"] {
+        color: #09090b !important;
+        font-weight: 600;
+        border-bottom-color: #09090b !important;
     }
 </style>
 """,
     unsafe_allow_html=True,
 )
-
-COLOR_PALETTE = [
-    "#4f46e5",
-    "#6366f1",
-    "#818cf8",
-    "#a5b4fc",
-    "#fb7185",
-    "#f43f5e",
-    "#fbbf24",
-    "#38bdf8",
-]
-
 
 # ----------------- 2. SQLite DB 초기화 -----------------
 def init_db():
@@ -136,7 +193,7 @@ def extract_period_from_name(filename):
     return "2024-03"
 
 
-# ----------------- 3. 엑셀 파서 엔진 (안정성 확보) -----------------
+# ----------------- 3. 안전한 엑셀 파서 엔진 -----------------
 def parse_hospital_excel(file_bytes, period_label):
     xls = pd.ExcelFile(file_bytes)
     sheet_names = xls.sheet_names
@@ -180,8 +237,6 @@ def parse_hospital_excel(file_bytes, period_label):
             continue
 
         df = pd.read_excel(xls, sheet_name=sheet, header=None)
-
-        # 헤더 탐색
         header_row_idx = None
         for r in range(min(6, len(df))):
             vals = [str(x).strip() for x in df.iloc[r].dropna()]
@@ -204,7 +259,6 @@ def parse_hospital_excel(file_bytes, period_label):
             elif "바이럴" in val:
                 viral_col = c
 
-        # 1) 거주 지역
         if region_col is not None and region_col + 1 < df.shape[1]:
             for r in range(header_row_idx + 1, len(df)):
                 reg = df.iloc[r, region_col]
@@ -226,7 +280,6 @@ def parse_hospital_excel(file_bytes, period_label):
                     except (ValueError, TypeError):
                         pass
 
-        # 2) 전체 유입 경로
         if channel_col is not None and channel_col + 1 < df.shape[1]:
             for r in range(header_row_idx + 1, len(df)):
                 ch = df.iloc[r, channel_col]
@@ -248,7 +301,6 @@ def parse_hospital_excel(file_bytes, period_label):
                     except (ValueError, TypeError):
                         pass
 
-        # 3) 바이럴 세부 경로
         if viral_col is not None and viral_col + 1 < df.shape[1]:
             for r in range(header_row_idx + 1, len(df)):
                 vch = df.iloc[r, viral_col]
@@ -278,7 +330,7 @@ def parse_hospital_excel(file_bytes, period_label):
     )
 
 
-# ----------------- 4. DB 데이터 조회 -----------------
+# ----------------- 4. DB 데이터 로드 -----------------
 conn = sqlite3.connect(DB_FILE)
 try:
     df_channels = pd.read_sql_query(
@@ -292,42 +344,44 @@ try:
 finally:
     conn.close()
 
-
-# ----------------- 5. 사이드바 구성 (순서 변경 적용) -----------------
+# ----------------- 5. 사이드바 (Harvey Dark Sidebar) -----------------
 with st.sidebar:
-    st.markdown("### 🏥 365MC NEW Patient Dashboard")
-    st.caption("신환 유입 & 상권 분석 시스템")
+    st.markdown(
+        "<div style='padding: 6px 0 16px 0;'>"
+        "<div style='font-family:Newsreader, serif; font-size:1.35rem; font-weight:500; color:#ffffff;'>365MC Intelligence</div>"
+        "<div style='font-size:0.75rem; color:#71717a;'>Enterprise Command Center</div>"
+        "</div>",
+        unsafe_allow_html=True,
+    )
 
-    # [수정 1] 상단: 분석 필터
-    st.markdown("---")
-    st.markdown("#### 🔍 분석 필터")
-
+    # 1. 상단: 분석 필터
+    st.markdown("<p style='font-size:0.75rem; color:#a1a1aa; font-weight:600; text-transform:uppercase; margin-bottom:8px;'>Parameters</p>", unsafe_allow_html=True)
     if not df_channels.empty:
         periods = sorted(df_channels["기간"].unique().tolist())
-        sel_period = st.selectbox("📅 분석 월 선택", periods)
+        sel_period = st.selectbox("분석 기간 (Date Range)", periods)
 
         branches = ["전지점(통합)"] + sorted(
             df_channels[df_channels["기간"] == sel_period]["지점명"]
             .unique()
             .tolist()
         )
-        sel_branch = st.selectbox("🎯 지점 선택", branches)
+        sel_branch = st.selectbox("지점 (Branch Office)", branches)
     else:
-        sel_period = None
-        sel_branch = None
-        st.warning("데이터가 없습니다. 아래에서 파일을 업로드해주세요.")
+        sel_period, sel_branch = None, None
+        st.caption("누적된 데이터베이스가 없습니다.")
 
-    # [수정 1] 하단: 엑셀 파일 업로드
-    st.markdown("---")
-    st.markdown("#### 📤 신환조사 엑셀파일 업로드")
+    st.markdown("<div style='height: 40px;'></div><hr style='margin: 0 0 20px 0;'>", unsafe_allow_html=True)
+
+    # 2. 하단: 파일 업로드
+    st.markdown("<p style='font-size:0.75rem; color:#a1a1aa; font-weight:600; text-transform:uppercase; margin-bottom:8px;'>Data Ingestion</p>", unsafe_allow_html=True)
     uploaded_files = st.file_uploader(
-        "엑셀 파일 (.xlsx)",
+        "신환 조사 엑셀 로드 (.xlsx)",
         type=["xlsx"],
         accept_multiple_files=True,
     )
 
     if uploaded_files:
-        if st.button("데이터 파싱 및 누적 저장", use_container_width=True):
+        if st.button("데이터 파싱 및 영구 동기화", use_container_width=True):
             conn = sqlite3.connect(DB_FILE)
             for file in uploaded_files:
                 period_tag = extract_period_from_name(file.name)
@@ -351,18 +405,21 @@ with st.sidebar:
                         index=False,
                     )
             conn.close()
-            st.success("데이터 파싱 및 누적 저장 완료!")
+            st.success("데이터베이스 동기화 완료")
             st.rerun()
 
-
-# ----------------- 6. 메인 화면 뷰 -----------------
+# ----------------- 6. 메인 화면 레이아웃 -----------------
 if df_channels.empty:
-    st.info(
-        "👋 좌측 사이드바 하단에서 `람스 신환조사` 엑셀 파일을 업로드하고 [데이터 파싱 및 누적 저장] 버튼을 눌러주세요."
+    st.markdown(
+        "<div style='padding: 60px 0; text-align: center;'>"
+        "<h2 class='formal-title'>365MC NEW Patient Command Center</h2>"
+        "<p style='color: #71717a;'>좌측 하단의 Data Ingestion 패널에서 조사 엑셀 파일을 업로드해 주십시오.</p>"
+        "</div>",
+        unsafe_allow_html=True,
     )
     st.stop()
 
-# 필터 적용
+# 필터링
 f_ch = df_channels[df_channels["기간"] == sel_period]
 f_reg = df_regions[df_regions["기간"] == sel_period]
 f_vir = df_viral[df_viral["기간"] == sel_period]
@@ -374,24 +431,26 @@ if sel_branch != "전지점(통합)":
     f_vir = f_vir[f_vir["지점명"] == sel_branch]
     f_vsum = f_vsum[f_vsum["지점명"] == sel_branch]
 
+# 포멀 헤더
 st.markdown(
-    f"<h2 style='color: #1e1b4b; margin-bottom: 0px;'>📈 {sel_branch} 성과 지표 요약</h2>"
-    f"<p style='color: #64748b; font-size: 0.95rem; margin-top: 4px;'>분석 기준월: <b>{sel_period}</b></p>",
+    f"""
+    <div style="margin-bottom: 24px;">
+        <div class="formal-title">Whitford Lanes Command Center — {sel_branch}</div>
+        <div style="color: #71717a; font-size: 0.9rem; margin-top: 4px;">
+            Target Cycle: <b>{sel_period}</b> &nbsp;|&nbsp; Status: Verified Data Source
+        </div>
+    </div>
+    """,
     unsafe_allow_html=True,
 )
 
-# ----------------- 7. 핵심 지표 계산 -----------------
-# 3. 총 신환 유입수
+# ----------------- 7. 지표 계산 및 KPI 카드 렌더링 -----------------
 total_inflows = f_ch["유입수"].sum() if not f_ch.empty else 0
-
-# 2위 카드: 최대 전환 경로
 top_channel = (
     f_ch.groupby("유입경로")["유입수"].sum().idxmax()
     if not f_ch.empty
     else "-"
 )
-
-# 5. 바이럴 기여율
 viral_rate = (
     round(
         (f_vsum["바이럴유입건수"].sum() / f_vsum["전체유입건수"].sum()) * 100, 1
@@ -400,8 +459,8 @@ viral_rate = (
     else 0.0
 )
 
-# 4. 모객 거주지 TOP3 계산
-top3_html = ""
+# TOP 3 거주지 HTML 구성
+top3_content = ""
 if not f_reg.empty:
     top3_reg = (
         f_reg.groupby("거주지역")["신환수"]
@@ -411,82 +470,100 @@ if not f_reg.empty:
         .head(3)
     )
     for idx, row in enumerate(top3_reg.itertuples(), start=1):
-        top3_html += f"""
-        <div class="top3-item">
-            <span><span class="top3-rank">{idx}위</span> {row.거주지역}</span>
-            <span>{row.신환수:,}명</span>
+        top3_content += f"""
+        <div class="top3-row">
+            <div><span class="top3-rank">{idx}</span> <span class="top3-name">{row.거주지역}</span></div>
+            <div class="top3-count">{row.신환수:,}명</div>
         </div>
         """
 else:
-    top3_html = "<div style='color:#94a3b8;'>데이터 없음</div>"
+    top3_content = "<div style='color:#a1a1aa; font-size:0.85rem;'>기록 없음</div>"
 
-# ----------------- 8. 상단 4대 KPI 카드 렌더링 -----------------
 k1, k2, k3, k4 = st.columns(4)
 
 with k1:
     st.markdown(
-        f"""<div class="metric-card">
-        <div>
-            <div class="metric-title">총 신환 유입수</div>
-            <div class="metric-value">{total_inflows:,} <span style="font-size:1rem; font-weight:500;">건</span></div>
-        </div>
-        <div class="metric-badge">Total Inflow Contacts</div>
-    </div>""",
+        f"""
+    <div class="metric-card">
+        <div class="metric-title">총 신환 유입수</div>
+        <div class="metric-value">{total_inflows:,} <span style="font-size:1.1rem; font-family:'Plus Jakarta Sans'; font-weight:400; color:#71717a;">건</span></div>
+        <div class="metric-badge">Gross Inflows</div>
+    </div>
+    """,
         unsafe_allow_html=True,
     )
 
 with k2:
     st.markdown(
-        f"""<div class="metric-card">
-        <div>
-            <div class="metric-title">최대 유입 채널</div>
-            <div class="metric-value" style="font-size:1.35rem; line-height: 1.8rem;">{top_channel}</div>
-        </div>
-        <div class="metric-badge">Top Performing Channel</div>
-    </div>""",
+        f"""
+    <div class="metric-card">
+        <div class="metric-title">최대 유입 채널</div>
+        <div class="metric-value" style="font-size:1.45rem; line-height:1.2; padding-top:6px;">{top_channel}</div>
+        <div class="metric-badge">Primary Channel</div>
+    </div>
+    """,
         unsafe_allow_html=True,
     )
 
 with k3:
     st.markdown(
-        f"""<div class="metric-card">
-        <div>
-            <div class="metric-title">바이럴 기여율</div>
-            <div class="metric-value">{viral_rate}%</div>
-        </div>
-        <div class="metric-badge">Blog / SNS Organic</div>
-    </div>""",
+        f"""
+    <div class="metric-card">
+        <div class="metric-title">바이럴 기여율</div>
+        <div class="metric-value">{viral_rate}<span style="font-size:1.3rem;">%</span></div>
+        <div class="metric-badge">Organic & SNS</div>
+    </div>
+    """,
         unsafe_allow_html=True,
     )
 
 with k4:
     st.markdown(
-        f"""<div class="metric-card">
-        <div>
-            <div class="metric-title">모객 거주지 TOP 3</div>
-            {top3_html}
-        </div>
-        <div class="metric-badge">Top 3 Core Regions</div>
-    </div>""",
+        f"""
+    <div class="metric-card">
+        <div class="metric-title" style="margin-bottom:6px;">모객 거주지 TOP 3</div>
+        <div>{top3_content}</div>
+        <div class="metric-badge">Key Terrirories</div>
+    </div>
+    """,
         unsafe_allow_html=True,
     )
 
-# ----------------- 9. 차트 레이아웃 -----------------
-layout_opts = dict(
-    paper_bgcolor="rgba(255,255,255,1)",
-    plot_bgcolor="rgba(255,255,255,1)",
-    margin=dict(l=15, r=15, t=35, b=15),
-    font=dict(family="sans-serif", color="#475569"),
-    xaxis=dict(showgrid=False, linecolor="#f1f5f9"),
-    yaxis=dict(showgrid=True, gridcolor="#f8fafc", linecolor="#f1f5f9"),
+st.markdown("<div style='height: 18px;'></div>", unsafe_allow_html=True)
+
+# ----------------- 8. Harvey 스타일 모노톤 차트 테마 -----------------
+# 딥 차콜, 슬레이트, 세이지 그레이 등 미니멀한 모노크롬 팔레트
+FORMAL_COLORS = ["#18181b", "#3f3f46", "#71717a", "#a1a1aa", "#d4d4d8", "#e4e4e7"]
+
+formal_layout = dict(
+    paper_bgcolor="#ffffff",
+    plot_bgcolor="#ffffff",
+    margin=dict(l=20, r=20, t=45, b=20),
+    font=dict(family="Plus Jakarta Sans, sans-serif", color="#3f3f46", size=12),
+    title=dict(
+        font=dict(family="Newsreader, serif", size=17, color="#18181b")
+    ),
+    xaxis=dict(
+        showgrid=False,
+        linecolor="#e4e4e7",
+        tickcolor="#e4e4e7",
+        tickfont=dict(size=11, color="#71717a"),
+    ),
+    yaxis=dict(
+        showgrid=True,
+        gridcolor="#f4f4f5",
+        linecolor="transparent",
+        tickfont=dict(size=11, color="#71717a"),
+    ),
 )
 
+# ----------------- 9. 탭별 분석 뷰 -----------------
 tab1, tab2, tab3 = st.tabs(
-    ["🎯 유입 채널 & 바이럴 심층분석", "🗺️️ 거주지 상권 분석", "📊 지점별 비교 (Rank)"]
+    ["유입 경로 분석 (Channels)", "배후 상권 분석 (Demographics)", "지점 벤치마크 (Benchmark)"]
 )
 
 with tab1:
-    c1, c2 = st.columns([1.3, 1])
+    c1, c2 = st.columns([1.4, 1])
     with c1:
         ch_sum = (
             f_ch.groupby("유입경로")["유입수"]
@@ -495,15 +572,16 @@ with tab1:
             .sort_values(by="유입수", ascending=True)
         )
         fig_ch = px.bar(
-            ch_sum.tail(12),
+            ch_sum.tail(10),
             x="유입수",
             y="유입경로",
             orientation="h",
             text_auto=True,
-            title="<b>전체 유입경로 Top 12</b>",
-            color_discrete_sequence=["#4f46e5"],
+            title="Channel Attribution (Top 10 Channels)",
+            color_discrete_sequence=["#27272a"],
         )
-        fig_ch.update_layout(**layout_opts)
+        fig_ch.update_layout(**formal_layout)
+        fig_ch.update_traces(marker_line_width=0, opacity=0.9)
         st.plotly_chart(fig_ch, use_container_width=True)
 
     with c2:
@@ -517,25 +595,30 @@ with tab1:
             v_sum,
             names="바이럴채널",
             values="유입수",
-            hole=0.6,
-            title="<b>바이럴 세부 유입 믹스</b>",
-            color_discrete_sequence=COLOR_PALETTE,
+            hole=0.68,
+            title="Viral Inflow Breakdown",
+            color_discrete_sequence=FORMAL_COLORS,
         )
         fig_vir.update_layout(
-            paper_bgcolor="rgba(255,255,255,1)",
-            margin=dict(l=10, r=10, t=35, b=10),
+            paper_bgcolor="#ffffff",
+            margin=dict(l=10, r=10, t=45, b=10),
+            font=dict(family="Plus Jakarta Sans", color="#52525b"),
+            title=dict(
+                font=dict(family="Newsreader, serif", size=17, color="#18181b")
+            ),
             legend=dict(
                 orientation="h",
                 yanchor="bottom",
-                y=-0.15,
+                y=-0.2,
                 xanchor="center",
                 x=0.5,
+                font=dict(size=11),
             ),
         )
         st.plotly_chart(fig_vir, use_container_width=True)
 
 with tab2:
-    r1, r2 = st.columns([1.2, 1])
+    r1, r2 = st.columns([1.3, 1])
     with r1:
         reg_sum = (
             f_reg.groupby("거주지역")["신환수"]
@@ -544,15 +627,16 @@ with tab2:
             .sort_values(by="신환수", ascending=True)
         )
         fig_reg = px.bar(
-            reg_sum.tail(15),
+            reg_sum.tail(12),
             x="신환수",
             y="거주지역",
             orientation="h",
             text_auto=True,
-            title="<b>신환 상위 거주지 (Top 15)</b>",
-            color_discrete_sequence=["#fb7185"],
+            title="Patient Geographic Origins (Top 12)",
+            color_discrete_sequence=["#52525b"],
         )
-        fig_reg.update_layout(**layout_opts)
+        fig_reg.update_layout(**formal_layout)
+        fig_reg.update_traces(marker_line_width=0)
         st.plotly_chart(fig_reg, use_container_width=True)
 
     with r2:
@@ -561,7 +645,7 @@ with tab2:
             f_reg_copy["권역분류"] = f_reg_copy["거주지역"].apply(
                 lambda x: "서울권"
                 if "서울" in str(x)
-                else ("경기/인천" if ("경기" in str(x) or "인천" in str(x)) else "기타 지방")
+                else ("경기/인천" if ("경기" in str(x) or "인천" in str(x)) else "지방/기타")
             )
             area_group = (
                 f_reg_copy.groupby("권역분류")["신환수"].sum().reset_index()
@@ -570,17 +654,21 @@ with tab2:
                 area_group,
                 names="권역분류",
                 values="신환수",
-                hole=0.55,
-                title="<b>광역 권역별 비중</b>",
-                color_discrete_sequence=["#818cf8", "#f43f5e", "#fbbf24"],
+                hole=0.68,
+                title="Regional Proportions",
+                color_discrete_sequence=["#18181b", "#71717a", "#d4d4d8"],
             )
             fig_area.update_layout(
-                paper_bgcolor="rgba(255,255,255,1)",
-                margin=dict(l=10, r=10, t=35, b=10),
+                paper_bgcolor="#ffffff",
+                margin=dict(l=10, r=10, t=45, b=10),
+                font=dict(family="Plus Jakarta Sans", color="#52525b"),
+                title=dict(
+                    font=dict(family="Newsreader, serif", size=17, color="#18181b")
+                ),
                 legend=dict(
                     orientation="h",
                     yanchor="bottom",
-                    y=-0.15,
+                    y=-0.2,
                     xanchor="center",
                     x=0.5,
                 ),
@@ -594,13 +682,14 @@ with tab3:
             sorted_vs,
             x="지점명",
             y="바이럴비중",
+            title="Branch Viral Contribution Comparison (%)",
             color="바이럴비중",
-            color_continuous_scale="Purples",
+            color_continuous_scale=["#a1a1aa", "#27272a"],
             text="바이럴비중",
-            title="<b>전국 지점 바이럴 유입 비중 (%) 비교</b>",
         )
         fig_rank.update_traces(texttemplate="%{text}%", textposition="outside")
-        fig_rank.update_layout(**layout_opts)
+        fig_rank.update_layout(**formal_layout)
+        fig_rank.update_coloraxes(showscale=False)
         st.plotly_chart(fig_rank, use_container_width=True)
 
         st.dataframe(
@@ -615,4 +704,4 @@ with tab3:
             use_container_width=True,
         )
     else:
-        st.info("지점별 비교를 보시려면 사이드바에서 [전지점(통합)]을 선택해주세요.")
+        st.info("지점 간 비교를 진행하려면 좌측 상단 필터에서 [전지점(통합)]을 지정하십시오.")
