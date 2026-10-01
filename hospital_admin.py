@@ -10,7 +10,7 @@ DB_FILE = "hospital_analytics.db"
 
 # ----------------- 1. 페이지 설정 및 완벽 방어형 스타일 -----------------
 st.set_page_config(
-    page_title="365MC NEW Patient Dashboard",
+    page_title="365MC 신환 유입 분석 대시보드",
     page_icon="🏥",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -21,13 +21,11 @@ st.markdown(
 <style>
     @import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css");
 
-    /* 1. 기본 본문 텍스트에만 Pretendard 고딕 적용 */
-    .stApp, .stMarkdown, .stSelectbox, .stFileUploader, .stMetric, [data-testid="stSidebarContent"], p, h1, h2, h3, h4, h5, h6 {
+    .stApp, .stMarkdown, .stSelectbox, .stMultiSelect, .stFileUploader, .stMetric, [data-testid="stSidebarContent"], p, h1, h2, h3, h4, h5, h6 {
         font-family: "Pretendard", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
         letter-spacing: -0.015em;
     }
 
-    /* 2. 스트림릿 내장 아이콘 폰트 강제 복구 (keyboard_double_ 및 upload 텍스트 중첩 영구 해결) */
     [data-testid="stIcon"], [class*="material-symbols"], [class*="material-icons"], .material-symbols-rounded {
         font-family: "Material Symbols Rounded", "Material Symbols Outlined", "Material Icons" !important;
         font-style: normal !important;
@@ -40,7 +38,7 @@ st.markdown(
         color: #1a1a1a;
     }
 
-    /* 3. 사이드바 다크 스타일 */
+    /* 사이드바 스타일 */
     [data-testid="stSidebar"] {
         background-color: #111111 !important;
         border-right: 1px solid #242424;
@@ -52,6 +50,7 @@ st.markdown(
         border-color: #262626 !important;
     }
     [data-testid="stSidebar"] .stSelectbox label, 
+    [data-testid="stSidebar"] .stMultiSelect label,
     [data-testid="stSidebar"] .stFileUploader label {
         color: #9ca3af !important;
         font-size: 0.8rem;
@@ -66,7 +65,7 @@ st.markdown(
         border-radius: 8px;
     }
 
-    /* 4. 포멀 메트릭 카드 */
+    /* 메트릭 카드 */
     .metric-card {
         background: #ffffff;
         border-radius: 12px;
@@ -102,7 +101,6 @@ st.markdown(
         border: 1px solid #e4e4e7;
     }
 
-    /* 5. TOP 3 리스트 */
     .top3-container {
         display: flex;
         flex-direction: column;
@@ -130,7 +128,6 @@ st.markdown(
         color: #09090b;
     }
 
-    /* 6. 탭 헤더 */
     .stTabs [data-baseweb="tab-list"] {
         gap: 24px;
         border-bottom: 1px solid #e5e5e5;
@@ -151,7 +148,41 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# ----------------- 2. SQLite DB 초기화 -----------------
+# ----------------- 2. 마케팅 채널 카테고리 태깅 엔진 -----------------
+def categorize_channel(ch_name):
+    """실무 채널 텍스트를 마케팅 의사결정용 대분류로 매핑"""
+    ch = str(ch_name).strip()
+    if any(k in ch for k in ["블로그", "Blog", "포스팅", "체험단"]):
+        return "네이버/포털 블로그"
+    elif any(k in ch for k in ["유튜브", "Youtube", "쇼츠", "Shorts"]):
+        return "유튜브 (영상)"
+    elif any(k in ch for k in ["인스타", "Instagram", "릴스", "Reels", "SNS"]):
+        return "인스타그램/SNS"
+    elif any(k in ch for k in ["플레이스", "지도", "스마트블록", "네이버예약"]):
+        return "플레이스/로컬지도"
+    elif any(k in ch for k in ["지인", "소개", "재방문", "추천", "가족"]):
+        return "지인소개/오프라인 구전"
+    elif any(k in ch for k in ["검색", "파워링크", "키워드", "SA"]):
+        return "검색광고(SA)"
+    elif any(k in ch for k in ["카페", "커뮤니티", "바비톡", "강남언니"]):
+        return "커뮤니티/미용앱"
+    else:
+        return "기타/직접방문"
+
+def categorize_funnel_type(cat_name):
+    """획득 채널의 전략적 성격 분류 (CEO 지표)"""
+    if cat_name in ["지인소개/오프라인 구전"]:
+        return "자생형 (오가닉/소개)"
+    elif cat_name in ["네이버/포털 블로그", "유튜브 (영상)", "인스타그램/SNS", "커뮤니티/미용앱"]:
+        return "콘텐츠/바이럴 유입"
+    elif cat_name in ["검색광고(SA)"]:
+        return "유료 퍼포먼스 광고"
+    elif cat_name in ["플레이스/로컬지도"]:
+        return "로컬/상권 탐색"
+    else:
+        return "일반/미분류"
+
+# ----------------- 3. SQLite DB 초기화 -----------------
 def init_db():
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
@@ -182,9 +213,7 @@ def init_db():
     conn.commit()
     conn.close()
 
-
 init_db()
-
 
 def extract_period_from_name(filename):
     match = re.search(r"\((\d{2})\.(\d{2})\)", filename)
@@ -192,8 +221,7 @@ def extract_period_from_name(filename):
         return f"20{match.group(1)}-{match.group(2)}"
     return "2024-03"
 
-
-# ----------------- 3. 엑셀 파서 엔진 -----------------
+# ----------------- 4. 엑셀 파서 엔진 -----------------
 def parse_hospital_excel(file_bytes, period_label):
     xls = pd.ExcelFile(file_bytes)
     sheet_names = xls.sheet_names
@@ -211,18 +239,11 @@ def parse_hospital_excel(file_bytes, period_label):
                 if len(row_vals) < 5:
                     continue
                 branch = str(row_vals[1]).strip()
-                if (
-                    branch
-                    and branch != "nan"
-                    and branch != "지점"
-                    and pd.notna(row_vals[2])
-                ):
+                if branch and branch != "nan" and branch != "지점" and pd.notna(row_vals[2]):
                     try:
                         tot_in = int(row_vals[2])
                         vir_in = int(row_vals[3])
-                        ratio = (
-                            float(row_vals[4]) if pd.notna(row_vals[4]) else 0.0
-                        )
+                        ratio = float(row_vals[4]) if pd.notna(row_vals[4]) else 0.0
                         viral_summary_records.append(
                             {
                                 "기간": period_label,
@@ -263,11 +284,7 @@ def parse_hospital_excel(file_bytes, period_label):
             for r in range(header_row_idx + 1, len(df)):
                 reg = df.iloc[r, region_col]
                 cnt = df.iloc[r, region_col + 1]
-                if (
-                    pd.notna(reg)
-                    and str(reg).strip()
-                    and str(reg).strip() != "nan"
-                ):
+                if pd.notna(reg) and str(reg).strip() and str(reg).strip() != "nan":
                     try:
                         region_records.append(
                             {
@@ -284,11 +301,7 @@ def parse_hospital_excel(file_bytes, period_label):
             for r in range(header_row_idx + 1, len(df)):
                 ch = df.iloc[r, channel_col]
                 cnt = df.iloc[r, channel_col + 1]
-                if (
-                    pd.notna(ch)
-                    and str(ch).strip()
-                    and str(ch).strip() != "nan"
-                ):
+                if pd.notna(ch) and str(ch).strip() and str(ch).strip() != "nan":
                     try:
                         channel_records.append(
                             {
@@ -305,11 +318,7 @@ def parse_hospital_excel(file_bytes, period_label):
             for r in range(header_row_idx + 1, len(df)):
                 vch = df.iloc[r, viral_col]
                 cnt = df.iloc[r, viral_col + 1]
-                if (
-                    pd.notna(vch)
-                    and str(vch).strip()
-                    and str(vch).strip() != "nan"
-                ):
+                if pd.notna(vch) and str(vch).strip() and str(vch).strip() != "nan":
                     try:
                         viral_records.append(
                             {
@@ -329,52 +338,69 @@ def parse_hospital_excel(file_bytes, period_label):
         pd.DataFrame(viral_summary_records),
     )
 
-
-# ----------------- 4. DB 데이터 로드 -----------------
+# ----------------- 5. DB 데이터 로드 및 전처리 -----------------
 conn = sqlite3.connect(DB_FILE)
 try:
-    df_channels = pd.read_sql_query(
-        "SELECT DISTINCT * FROM channels", conn
-    )
+    df_channels = pd.read_sql_query("SELECT DISTINCT * FROM channels", conn)
     df_regions = pd.read_sql_query("SELECT DISTINCT * FROM regions", conn)
     df_viral = pd.read_sql_query("SELECT DISTINCT * FROM viral", conn)
-    df_vsum = pd.read_sql_query(
-        "SELECT DISTINCT * FROM viral_summary", conn
-    )
+    df_vsum = pd.read_sql_query("SELECT DISTINCT * FROM viral_summary", conn)
 finally:
     conn.close()
 
-# ----------------- 5. 사이드바 (사진 제거 완료) -----------------
+if not df_channels.empty:
+    # 마케팅 분류 파생 컬럼 생성
+    df_channels["매체대분류"] = df_channels["유입경로"].apply(categorize_channel)
+    df_channels["획득유형"] = df_channels["매체대분류"].apply(categorize_funnel_type)
+
+# ----------------- 6. 사이드바 (고도화된 분석 필터) -----------------
 with st.sidebar:
     st.markdown(
         f'<div style="text-align: center; padding: 20px 0 16px 0;">'
         f'<div style="font-size:1.35rem; font-weight:700; color:#ffffff;">365MC Intelligence</div>'
-        f'<div style="font-size:0.8rem; color:#a1a1aa; margin-top:4px;">신환 유입 & 상권 분석 시스템</div>'
+        f'<div style="font-size:0.8rem; color:#a1a1aa; margin-top:4px;">신환 유입 & 마케팅 ROI 대시보드</div>'
         f'</div>',
         unsafe_allow_html=True,
     )
 
     st.markdown("---")
     st.markdown(
-        "<p style='font-size:0.78rem; color:#9ca3af; font-weight:700; margin-bottom:8px;'>🔍 분석 필터</p>",
+        "<p style='font-size:0.82rem; color:#f3f4f6; font-weight:700; margin-bottom:8px;'>📌 기본 필터</p>",
         unsafe_allow_html=True,
     )
     if not df_channels.empty:
         periods = sorted(df_channels["기간"].unique().tolist())
-        sel_period = st.selectbox("분석 월 선택", periods)
+        sel_period = st.selectbox("분석 월 선택", periods, index=len(periods)-1)
 
         branches = ["전지점(통합)"] + sorted(
-            df_channels[df_channels["기간"] == sel_period]["지점명"]
-            .unique()
-            .tolist()
+            df_channels[df_channels["기간"] == sel_period]["지점명"].unique().tolist()
         )
         sel_branch = st.selectbox("지점 선택", branches)
+
+        st.markdown("---")
+        st.markdown(
+            "<p style='font-size:0.82rem; color:#38bdf8; font-weight:700; margin-bottom:4px;'>🎯 마케팅/CEO 전문 필터</p>",
+            unsafe_allow_html=True,
+        )
+        
+        # 1. 환자 획득 성격 필터 (CEO 관점: 오가닉 vs 마케팅 의존도)
+        all_funnel_types = ["전체"] + sorted(df_channels["획득유형"].unique().tolist())
+        sel_funnel = st.selectbox("획득 성격 (Acquisition)", all_funnel_types)
+
+        # 2. 채널 대분류 필터 (블로그, 유튜브, 인스타 등 다중 선택)
+        available_categories = sorted(df_channels["매체대분류"].unique().tolist())
+        sel_categories = st.multiselect(
+            "매체 채널군 선택 (다중선택)",
+            options=available_categories,
+            default=available_categories,
+            help="블로그, 유튜브, 인스타그램 등 확인하려는 채널만 집중 필터링할 수 있습니다."
+        )
     else:
-        sel_period, sel_branch = None, None
+        sel_period, sel_branch, sel_funnel, sel_categories = None, None, "전체", []
         st.caption("누적된 데이터가 없습니다.")
 
     st.markdown(
-        "<div style='height: 30px;'></div><hr style='margin: 0 0 20px 0;'>",
+        "<div style='height: 20px;'></div><hr style='margin: 0 0 20px 0;'>",
         unsafe_allow_html=True,
     )
 
@@ -396,62 +422,64 @@ with st.sidebar:
                 df_r, df_c, df_v, df_vs = parse_hospital_excel(file, period_tag)
 
                 if not df_r.empty:
-                    df_r.to_sql(
-                        "regions", conn, if_exists="append", index=False
-                    )
+                    df_r.to_sql("regions", conn, if_exists="append", index=False)
                 if not df_c.empty:
-                    df_c.to_sql(
-                        "channels", conn, if_exists="append", index=False
-                    )
+                    df_c.to_sql("channels", conn, if_exists="append", index=False)
                 if not df_v.empty:
                     df_v.to_sql("viral", conn, if_exists="append", index=False)
                 if not df_vs.empty:
-                    df_vs.to_sql(
-                        "viral_summary",
-                        conn,
-                        if_exists="append",
-                        index=False,
-                    )
+                    df_vs.to_sql("viral_summary", conn, if_exists="append", index=False)
             conn.close()
             st.success("데이터베이스 동기화 완료")
             st.rerun()
 
-# ----------------- 6. 메인 화면 레이아웃 (사진 제거 완료) -----------------
+# ----------------- 7. 메인 화면 레이아웃 -----------------
 if df_channels.empty:
     st.markdown(
         '<div style="padding: 60px 0; text-align: center;">'
-        '<h2 style="font-weight:700; font-size:2rem; color:#0f172a;">365MC NEW Patient Command Center</h2>'
+        '<h2 style="font-weight:700; font-size:2rem; color:#0f172a;">365MC 신환 유입 분석 대시보드</h2>'
         '<p style="color: #71717a;">좌측 하단의 [신환조사 엑셀파일 업로드]에서 조사 파일을 업로드해 주십시오.</p>'
         '</div>',
         unsafe_allow_html=True,
     )
     st.stop()
 
-# 필터링
-f_ch = df_channels[df_channels["기간"] == sel_period]
+# 1) 지점 필터링 적용된 전체 시계열 데이터셋 (추이 분석용)
+trend_df = df_channels.copy()
+if sel_branch != "전지점(통합)":
+    trend_df = trend_df[trend_df["지점명"] == sel_branch]
+if sel_funnel != "전체":
+    trend_df = trend_df[trend_df["획득유형"] == sel_funnel]
+if sel_categories:
+    trend_df = trend_df[trend_df["매체대분류"].isin(sel_categories)]
+
+# 2) 선택 월 기준 필터링 데이터셋
+f_ch = trend_df[trend_df["기간"] == sel_period]
 f_reg = df_regions[df_regions["기간"] == sel_period]
 f_vir = df_viral[df_viral["기간"] == sel_period]
 f_vsum = df_vsum[df_vsum["기간"] == sel_period]
 
-if sel_branch != "전지점(통합)":
-    f_ch = f_ch[f_ch["지점명"] == sel_branch]
+is_all_branches = sel_branch == "전지점(통합)"
+
+if not is_all_branches:
     f_reg = f_reg[f_reg["지점명"] == sel_branch]
     f_vir = f_vir[f_vir["지점명"] == sel_branch]
     f_vsum = f_vsum[f_vsum["지점명"] == sel_branch]
 
+# 타이틀
 st.markdown(
     f'<div style="margin-bottom: 24px;">'
     f'<div style="display: flex; align-items: center;">'
-    f'<span style="font-weight: 700; font-size: 2.1rem; color: #0f172a; letter-spacing: -0.03em;">365MC 환자 관리 센터 — {sel_branch}</span>'
+    f'<span style="font-weight: 700; font-size: 2.1rem; color: #0f172a; letter-spacing: -0.03em;">365MC 신환 유입 분석 대시보드 — {sel_branch}</span>'
     f'</div>'
     f'<div style="color: #64748b; font-size: 0.92rem; font-weight: 500; margin-top: 6px;">'
-    f'분석 기준월: <b>{sel_period}</b> &nbsp;|&nbsp; 데이터 검증 완료 (Verified)'
+    f'분석 기준월: <b>{sel_period}</b> &nbsp;|&nbsp; 채널 필터: <b>{", ".join(sel_categories) if len(sel_categories) <= 3 else f"{len(sel_categories)}개 매체 선택됨"}</b>'
     f'</div>'
     f'</div>',
     unsafe_allow_html=True,
 )
 
-# ----------------- 7. 지표 계산 및 KPI 카드 렌더링 -----------------
+# ----------------- 8. KPI 카드 렌더링 -----------------
 total_inflows = f_ch["유입수"].sum() if not f_ch.empty else 0
 top_channel = (
     f_ch.groupby("유입경로")["유입수"].sum().idxmax()
@@ -466,34 +494,18 @@ viral_rate = (
     else 0.0
 )
 
-rows_list = []
-if not f_reg.empty:
-    top3_reg = (
-        f_reg.groupby("거주지역")["신환수"]
-        .sum()
-        .reset_index()
-        .sort_values(by="신환수", ascending=False)
-        .head(3)
-    )
-    for idx, row in enumerate(top3_reg.itertuples(), start=1):
-        rows_list.append(
-            f'<div class="top3-row">'
-            f'<div><span class="top3-rank">{idx}위</span><span class="top3-name">{row.거주지역}</span></div>'
-            f'<div class="top3-count">{row.신환수:,}명</div>'
-            f'</div>'
-        )
-    top3_content = '<div class="top3-container">' + "".join(rows_list) + '</div>'
+# 전지점(통합)은 모객거주지 카드 제외 (3단), 개별 지점은 4단
+if is_all_branches:
+    k1, k2, k3 = st.columns(3)
 else:
-    top3_content = "<div style='color:#a1a1aa; font-size:0.85rem;'>기록 없음</div>"
-
-k1, k2, k3, k4 = st.columns(4)
+    k1, k2, k3, k4 = st.columns(4)
 
 with k1:
     st.markdown(
         f'<div class="metric-card">'
-        f'<div class="metric-title">총 신환 유입수</div>'
+        f'<div class="metric-title">선택 채널 총 유입수</div>'
         f'<div class="metric-value">{total_inflows:,} <span style="font-size:1.05rem; font-weight:500; color:#64748b;">건</span></div>'
-        f'<div class="metric-badge">Gross Inflows</div>'
+        f'<div class="metric-badge">Filtered Inflows</div>'
         f'</div>',
         unsafe_allow_html=True,
     )
@@ -501,9 +513,9 @@ with k1:
 with k2:
     st.markdown(
         f'<div class="metric-card">'
-        f'<div class="metric-title">최대 유입 채널</div>'
-        f'<div class="metric-value" style="font-size:1.45rem; line-height:1.2; padding-top:4px;">{top_channel}</div>'
-        f'<div class="metric-badge">Primary Channel</div>'
+        f'<div class="metric-title">선택 채널 중 1위 매체</div>'
+        f'<div class="metric-value" style="font-size:1.35rem; line-height:1.2; padding-top:4px;">{top_channel}</div>'
+        f'<div class="metric-badge">Top Performing Source</div>'
         f'</div>',
         unsafe_allow_html=True,
     )
@@ -511,122 +523,128 @@ with k2:
 with k3:
     st.markdown(
         f'<div class="metric-card">'
-        f'<div class="metric-title">바이럴 기여율</div>'
+        f'<div class="metric-title">전체 대비 바이럴 기여율</div>'
         f'<div class="metric-value">{viral_rate}<span style="font-size:1.2rem;">%</span></div>'
-        f'<div class="metric-badge">Organic & SNS</div>'
+        f'<div class="metric-badge">Viral Share</div>'
         f'</div>',
         unsafe_allow_html=True,
     )
 
-with k4:
-    st.markdown(
-        f'<div class="metric-card">'
-        f'<div class="metric-title" style="margin-bottom:6px;">모객 거주지 TOP 3</div>'
-        f'{top3_content}'
-        f'<div class="metric-badge">Key Territories</div>'
-        f'</div>',
-        unsafe_allow_html=True,
-    )
+if not is_all_branches:
+    rows_list = []
+    if not f_reg.empty:
+        top3_reg = (
+            f_reg.groupby("거주지역")["신환수"]
+            .sum()
+            .reset_index()
+            .sort_values(by="신환수", ascending=False)
+            .head(3)
+        )
+        for idx, row in enumerate(top3_reg.itertuples(), start=1):
+            rows_list.append(
+                f'<div class="top3-row">'
+                f'<div><span class="top3-rank">{idx}위</span><span class="top3-name">{row.거주지역}</span></div>'
+                f'<div class="top3-count">{row.신환수:,}명</div>'
+                f'</div>'
+            )
+        top3_content = '<div class="top3-container">' + "".join(rows_list) + '</div>'
+    else:
+        top3_content = "<div style='color:#a1a1aa; font-size:0.85rem;'>기록 없음</div>"
+
+    with k4:
+        st.markdown(
+            f'<div class="metric-card">'
+            f'<div class="metric-title" style="margin-bottom:6px;">모객 거주지 TOP 3</div>'
+            f'{top3_content}'
+            f'<div class="metric-badge">Key Territories</div>'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
 
 st.markdown("<div style='height: 18px;'></div>", unsafe_allow_html=True)
 
-# ----------------- 8. 차트 테마 설정 -----------------
-FORMAL_COLORS = ["#18181b", "#3f3f46", "#71717a", "#a1a1aa", "#d4d4d8", "#e4e4e7"]
-
+# 차트 레이아웃 템플릿
 formal_layout = dict(
     paper_bgcolor="#ffffff",
     plot_bgcolor="#ffffff",
     margin=dict(l=20, r=20, t=45, b=20),
-    font=dict(
-        family="Pretendard, -apple-system, sans-serif",
-        color="#334155",
-        size=12,
-    ),
-    title=dict(
-        font=dict(
-            family="Pretendard, -apple-system, sans-serif",
-            size=16,
-            color="#0f172a",
-        )
-    ),
-    xaxis=dict(
-        showgrid=False,
-        showline=True,
-        linecolor="#e2e8f0",
-        tickcolor="#e2e8f0",
-        tickfont=dict(size=11, color="#64748b"),
-    ),
-    yaxis=dict(
-        showgrid=True,
-        gridcolor="#f1f5f9",
-        showline=False,
-        tickfont=dict(size=11, color="#64748b"),
-    ),
+    font=dict(family="Pretendard, -apple-system, sans-serif", color="#334155", size=12),
+    title=dict(font=dict(family="Pretendard, -apple-system, sans-serif", size=15, color="#0f172a")),
+    xaxis=dict(showgrid=False, showline=True, linecolor="#e2e8f0", tickcolor="#e2e8f0", tickfont=dict(size=11, color="#64748b")),
+    yaxis=dict(showgrid=True, gridcolor="#f1f5f9", showline=False, tickfont=dict(size=11, color="#64748b")),
 )
 
-# ----------------- 9. 탭별 분석 뷰 -----------------
-tab1, tab2, tab3 = st.tabs(
-    ["유입 경로 분석 (Channels)", "거주지 상권 분석 (Demographics)", "지점 벤치마크 (Benchmark)"]
-)
+FORMAL_COLORS = ["#1e293b", "#334155", "#475569", "#64748b", "#94a3b8", "#cbd5e1"]
 
-with tab1:
-    c1, c2 = st.columns([1.4, 1])
+# ----------------- 9. 탭별 뷰 구현 -----------------
+def render_channel_tab():
+    c1, c2 = st.columns([1.3, 1])
     with c1:
-        ch_sum = (
-            f_ch.groupby("유입경로")["유입수"]
+        cat_sum = (
+            f_ch.groupby("매체대분류")["유입수"]
             .sum()
             .reset_index()
             .sort_values(by="유입수", ascending=True)
         )
-        fig_ch = px.bar(
-            ch_sum.tail(10),
+        fig_cat = px.bar(
+            cat_sum,
             x="유입수",
-            y="유입경로",
+            y="매체대분류",
             orientation="h",
             text_auto=True,
-            title="<b>전체 유입경로 순위 (Top 10 Channels)</b>",
+            title="<b>매체 대분류별 유입 순위 (Category Breakdown)</b>",
             color_discrete_sequence=["#1e293b"],
         )
-        fig_ch.update_layout(**formal_layout)
-        fig_ch.update_traces(marker_line_width=0, opacity=0.9)
-        st.plotly_chart(fig_ch, use_container_width=True)
+        fig_cat.update_layout(**formal_layout)
+        st.plotly_chart(fig_cat, use_container_width=True)
 
     with c2:
-        v_sum = (
-            f_vir.groupby("바이럴채널")["유입수"]
-            .sum()
-            .reset_index()
-            .sort_values(by="유입수", ascending=False)
-        )
-        fig_vir = px.pie(
-            v_sum,
-            names="바이럴채널",
+        fig_pie = px.pie(
+            cat_sum,
+            names="매체대분류",
             values="유입수",
-            hole=0.68,
-            title="<b>바이럴 세부 유입 비중</b>",
+            hole=0.6,
+            title="<b>채널군 유입 점유율 (%)</b>",
             color_discrete_sequence=FORMAL_COLORS,
         )
-        fig_vir.update_layout(
-            paper_bgcolor="#ffffff",
-            margin=dict(l=10, r=10, t=45, b=10),
-            font=dict(family="Pretendard, sans-serif", color="#475569"),
-            title=dict(
-                font=dict(
-                    family="Pretendard, sans-serif", size=16, color="#0f172a"
-                )
-            ),
-            legend=dict(
-                orientation="h",
-                yanchor="bottom",
-                y=-0.2,
-                xanchor="center",
-                x=0.5,
-                font=dict(size=11),
-            ),
-        )
-        st.plotly_chart(fig_vir, use_container_width=True)
+        fig_pie.update_layout(paper_bgcolor="#ffffff", margin=dict(l=10, r=10, t=45, b=10))
+        st.plotly_chart(fig_pie, use_container_width=True)
 
-with tab2:
+    st.markdown("#### 세부 유입경로 상세 (Top 15)")
+    detail_ch = (
+        f_ch.groupby(["매체대분류", "유입경로"])["유입수"]
+        .sum()
+        .reset_index()
+        .sort_values(by="유입수", ascending=False)
+        .head(15)
+    )
+    st.dataframe(detail_ch.reset_index(drop=True), use_container_width=True)
+
+def render_trend_tab():
+    """CEO/CMO 핵심 기능: 월별 채널 유입 추이"""
+    st.markdown("#### 📈 월별 매체 유입 추이 분석 (MoM Trend)")
+    if trend_df.empty:
+        st.info("선택된 필터 조건에 해당하는 데이터가 없습니다.")
+        return
+
+    trend_pivot = (
+        trend_df.groupby(["기간", "매체대분류"])["유입수"]
+        .sum()
+        .reset_index()
+    )
+
+    fig_trend = px.line(
+        trend_pivot,
+        x="기간",
+        y="유입수",
+        color="매체대분류",
+        markers=True,
+        title="<b>월별 주요 채널 성장 및 감소 추이</b>",
+    )
+    fig_trend.update_layout(**formal_layout)
+    st.plotly_chart(fig_trend, use_container_width=True)
+
+def render_region_tab():
     r1, r2 = st.columns([1.3, 1])
     with r1:
         reg_sum = (
@@ -645,7 +663,6 @@ with tab2:
             color_discrete_sequence=["#475569"],
         )
         fig_reg.update_layout(**formal_layout)
-        fig_reg.update_traces(marker_line_width=0)
         st.plotly_chart(fig_reg, use_container_width=True)
 
     with r2:
@@ -656,39 +673,19 @@ with tab2:
                 if "서울" in str(x)
                 else ("경기/인천" if ("경기" in str(x) or "인천" in str(x)) else "지방/기타")
             )
-            area_group = (
-                f_reg_copy.groupby("권역분류")["신환수"].sum().reset_index()
-            )
+            area_group = f_reg_copy.groupby("권역분류")["신환수"].sum().reset_index()
             fig_area = px.pie(
                 area_group,
                 names="권역분류",
                 values="신환수",
-                hole=0.68,
+                hole=0.65,
                 title="<b>광역 권역별 환자 비중</b>",
                 color_discrete_sequence=["#0f172a", "#64748b", "#cbd5e1"],
             )
-            fig_area.update_layout(
-                paper_bgcolor="#ffffff",
-                margin=dict(l=10, r=10, t=45, b=10),
-                font=dict(family="Pretendard, sans-serif", color="#475569"),
-                title=dict(
-                    font=dict(
-                        family="Pretendard, sans-serif",
-                        size=16,
-                        color="#0f172a",
-                    )
-                ),
-                legend=dict(
-                    orientation="h",
-                    yanchor="bottom",
-                    y=-0.2,
-                    xanchor="center",
-                    x=0.5,
-                ),
-            )
+            fig_area.update_layout(paper_bgcolor="#ffffff", margin=dict(l=10, r=10, t=45, b=10))
             st.plotly_chart(fig_area, use_container_width=True)
 
-with tab3:
+def render_benchmark_tab():
     if sel_branch == "전지점(통합)":
         sorted_vs = f_vsum.sort_values(by="바이럴비중", ascending=False)
         fig_rank = px.bar(
@@ -706,15 +703,32 @@ with tab3:
         st.plotly_chart(fig_rank, use_container_width=True)
 
         st.dataframe(
-            sorted_vs[
-                [
-                    "지점명",
-                    "전체유입건수",
-                    "바이럴유입건수",
-                    "바이럴비중",
-                ]
-            ].reset_index(drop=True),
+            sorted_vs[["지점명", "전체유입건수", "바이럴유입건수", "바이럴비중"]].reset_index(drop=True),
             use_container_width=True,
         )
     else:
         st.info("전국 지점 간 비교를 확인하시려면 좌측 상단 필터에서 [전지점(통합)]을 선택해 주십시오.")
+
+# ----------------- 10. 탭 구성 실행 -----------------
+if is_all_branches:
+    tab1, tab_trend, tab3 = st.tabs(
+        ["유입 경로 분석 (Channels)", "월별 유입 추이 (Trends)", "지점 벤치마크 (Benchmark)"]
+    )
+    with tab1:
+        render_channel_tab()
+    with tab_trend:
+        render_trend_tab()
+    with tab3:
+        render_benchmark_tab()
+else:
+    tab1, tab_trend, tab2, tab3 = st.tabs(
+        ["유입 경로 분석 (Channels)", "월별 유입 추이 (Trends)", "거주지 상권 분석 (Demographics)", "지점 벤치마크 (Benchmark)"]
+    )
+    with tab1:
+        render_channel_tab()
+    with tab_trend:
+        render_trend_tab()
+    with tab2:
+        render_region_tab()
+    with tab3:
+        render_benchmark_tab()
