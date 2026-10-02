@@ -208,34 +208,34 @@ def init_db():
     c = conn.cursor()
     c.execute(
         """CREATE TABLE IF NOT EXISTS regions (
-                    기간 TEXT, 지점명 TEXT, 거주지역 TEXT, 신환수 INTEGER,
-                    PRIMARY KEY(기간, 지점명, 거주지역)
-                 )"""
+            기간 TEXT, 지점명 TEXT, 거주지역 TEXT, 신환수 INTEGER,
+            PRIMARY KEY(기간, 지점명, 거주지역)
+        )"""
     )
     c.execute(
         """CREATE TABLE IF NOT EXISTS channels (
-                    기간 TEXT, 지점명 TEXT, 유입경로 TEXT, 유입수 INTEGER,
-                    PRIMARY KEY(기간, 지점명, 유입경로)
-                 )"""
+            기간 TEXT, 지점명 TEXT, 유입경로 TEXT, 유입수 INTEGER,
+            PRIMARY KEY(기간, 지점명, 유입경로)
+        )"""
     )
     c.execute(
         """CREATE TABLE IF NOT EXISTS viral (
-                    기간 TEXT, 지점명 TEXT, 바이럴채널 TEXT, 유입수 INTEGER,
-                    PRIMARY KEY(기간, 지점명, 바이럴채널)
-                 )"""
+            기간 TEXT, 지점명 TEXT, 바이럴채널 TEXT, 유입수 INTEGER,
+            PRIMARY KEY(기간, 지점명, 바이럴채널)
+        )"""
     )
     c.execute(
         """CREATE TABLE IF NOT EXISTS viral_summary (
-                    기간 TEXT, 지점명 TEXT, 전체유입건수 INTEGER, 바이럴유입건수 INTEGER, 바이럴비중 REAL,
-                    PRIMARY KEY(기간, 지점명)
-                 )"""
+            기간 TEXT, 지점명 TEXT, 전체유입건수 INTEGER, 바이럴유입건수 INTEGER, 바이럴비중 REAL,
+            PRIMARY KEY(기간, 지점명)
+        )"""
     )
     conn.commit()
     conn.close()
 
 init_db()
 
-# ----------------- 4. 엑셀 파서 엔진 (람스/수술 지점 구분 반영) -----------------
+# ----------------- 4. 엑셀 파서 엔진 -----------------
 def parse_hospital_excel(file_bytes, period_label, suffix=""):
     xls = pd.ExcelFile(file_bytes)
     sheet_names = xls.sheet_names
@@ -369,13 +369,13 @@ finally:
 if not df_channels.empty:
     df_channels["유입성격"] = df_channels["유입경로"].apply(map_inflow_nature)
 
-# ----------------- 6. 사이드바 (분석 필터 및 비밀번호 인증 업로드) -----------------
+# ----------------- 6. 사이드바 (분석 필터 및 업로드) -----------------
 with st.sidebar:
     st.markdown(
-        f'<div style="text-align: center; padding: 20px 0 16px 0;">'
-        f'<div style="font-size:1.35rem; font-weight:700; color:#ffffff;">365MC Intelligence</div>'
-        f'<div style="font-size:0.8rem; color:#a1a1aa; margin-top:4px;">신환 유입 & 마케팅 분석 시스템</div>'
-        f'</div>',
+        '<div style="text-align: center; padding: 20px 0 16px 0;">'
+        '<div style="font-size:1.35rem; font-weight:700; color:#ffffff;">365MC Intelligence</div>'
+        '<div style="font-size:0.8rem; color:#a1a1aa; margin-top:4px;">신환 유입 & 마케팅 분석 시스템</div>'
+        '</div>',
         unsafe_allow_html=True,
     )
 
@@ -386,7 +386,7 @@ with st.sidebar:
     )
     if not df_channels.empty:
         periods = sorted(df_channels["기간"].unique().tolist())
-        sel_period = st.selectbox("분석 월 선택", periods, index=len(periods)-1)
+        sel_period = st.selectbox("분석 월 선택", periods, index=len(periods) - 1)
 
         branches = ["전지점(통합)"] + sorted(
             df_channels[df_channels["기간"] == sel_period]["지점명"].unique().tolist()
@@ -444,7 +444,7 @@ with st.sidebar:
             accept_multiple_files=True,
         )
 
-if uploaded_files:
+        if uploaded_files:
             if st.button("데이터 파싱 및 영구 동기화", use_container_width=True):
                 conn = sqlite3.connect(DB_FILE)
                 cursor = conn.cursor()
@@ -454,7 +454,7 @@ if uploaded_files:
                     suffix = detect_branch_suffix(file.name)
                     df_r, df_c, df_v, df_vs = parse_hospital_excel(file, period_tag, suffix)
 
-                    # 1. DataFrame 내 중복 키 사전 병합 (신환수/유입수 합산)
+                    # 1. 중복 키 집계 (Primary Key 충돌 방지)
                     if not df_r.empty:
                         df_r = df_r.groupby(["기간", "지점명", "거주지역"], as_index=False)["신환수"].sum()
                     if not df_c.empty:
@@ -464,7 +464,7 @@ if uploaded_files:
                     if not df_vs.empty:
                         df_vs = df_vs.drop_duplicates(subset=["기간", "지점명"], keep="last")
 
-                    # 2. 동일 기간 및 지점 기존 데이터 삭제
+                    # 2. 기존 데이터 삭제 후 안전 갱신
                     like_pattern = f"%{suffix}" if suffix else "%"
                     cursor.execute("DELETE FROM regions WHERE 기간 = ? AND 지점명 LIKE ?", (period_tag, like_pattern))
                     cursor.execute("DELETE FROM channels WHERE 기간 = ? AND 지점명 LIKE ?", (period_tag, like_pattern))
@@ -472,7 +472,7 @@ if uploaded_files:
                     cursor.execute("DELETE FROM viral_summary WHERE 기간 = ? AND 지점명 LIKE ?", (period_tag, like_pattern))
                     conn.commit()
 
-                    # 3. INSERT OR REPLACE 구문으로 안전하게 적재
+                    # 3. INSERT OR REPLACE 실행
                     if not df_r.empty:
                         cursor.executemany(
                             "INSERT OR REPLACE INTO regions (기간, 지점명, 거주지역, 신환수) VALUES (?, ?, ?, ?)",
