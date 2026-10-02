@@ -444,7 +444,7 @@ with st.sidebar:
             accept_multiple_files=True,
         )
 
-        if uploaded_files:
+if uploaded_files:
             if st.button("데이터 파싱 및 영구 동기화", use_container_width=True):
                 conn = sqlite3.connect(DB_FILE)
                 cursor = conn.cursor()
@@ -454,7 +454,17 @@ with st.sidebar:
                     suffix = detect_branch_suffix(file.name)
                     df_r, df_c, df_v, df_vs = parse_hospital_excel(file, period_tag, suffix)
 
-                    # 동일 기간 및 동일 구분(람스/수술) 기존 데이터가 있을 시 덮어쓰기(삭제 후 추가)
+                    # 1. DataFrame 내 중복 키 사전 병합 (신환수/유입수 합산)
+                    if not df_r.empty:
+                        df_r = df_r.groupby(["기간", "지점명", "거주지역"], as_index=False)["신환수"].sum()
+                    if not df_c.empty:
+                        df_c = df_c.groupby(["기간", "지점명", "유입경로"], as_index=False)["유입수"].sum()
+                    if not df_v.empty:
+                        df_v = df_v.groupby(["기간", "지점명", "바이럴채널"], as_index=False)["유입수"].sum()
+                    if not df_vs.empty:
+                        df_vs = df_vs.drop_duplicates(subset=["기간", "지점명"], keep="last")
+
+                    # 2. 동일 기간 및 지점 기존 데이터 삭제
                     like_pattern = f"%{suffix}" if suffix else "%"
                     cursor.execute("DELETE FROM regions WHERE 기간 = ? AND 지점명 LIKE ?", (period_tag, like_pattern))
                     cursor.execute("DELETE FROM channels WHERE 기간 = ? AND 지점명 LIKE ?", (period_tag, like_pattern))
@@ -462,14 +472,28 @@ with st.sidebar:
                     cursor.execute("DELETE FROM viral_summary WHERE 기간 = ? AND 지점명 LIKE ?", (period_tag, like_pattern))
                     conn.commit()
 
+                    # 3. INSERT OR REPLACE 구문으로 안전하게 적재
                     if not df_r.empty:
-                        df_r.to_sql("regions", conn, if_exists="append", index=False)
+                        cursor.executemany(
+                            "INSERT OR REPLACE INTO regions (기간, 지점명, 거주지역, 신환수) VALUES (?, ?, ?, ?)",
+                            df_r[["기간", "지점명", "거주지역", "신환수"]].values.tolist()
+                        )
                     if not df_c.empty:
-                        df_c.to_sql("channels", conn, if_exists="append", index=False)
+                        cursor.executemany(
+                            "INSERT OR REPLACE INTO channels (기간, 지점명, 유입경로, 유입수) VALUES (?, ?, ?, ?)",
+                            df_c[["기간", "지점명", "유입경로", "유입수"]].values.tolist()
+                        )
                     if not df_v.empty:
-                        df_v.to_sql("viral", conn, if_exists="append", index=False)
+                        cursor.executemany(
+                            "INSERT OR REPLACE INTO viral (기간, 지점명, 바이럴채널, 유입수) VALUES (?, ?, ?, ?)",
+                            df_v[["기간", "지점명", "바이럴채널", "유입수"]].values.tolist()
+                        )
                     if not df_vs.empty:
-                        df_vs.to_sql("viral_summary", conn, if_exists="append", index=False)
+                        cursor.executemany(
+                            "INSERT OR REPLACE INTO viral_summary (기간, 지점명, 전체유입건수, 바이럴유입건수, 바이럴비중) VALUES (?, ?, ?, ?, ?)",
+                            df_vs[["기간", "지점명", "전체유입건수", "바이럴유입건수", "바이럴비중"]].values.tolist()
+                        )
+                    conn.commit()
 
                 conn.close()
                 st.success("데이터베이스 동기화 완료 (람스/수술 지점 자동 구분)")
